@@ -1,28 +1,8 @@
-from enum import IntEnum
-from typing import Tuple, Dict, List, Iterable
+from typing import Tuple, Dict, Iterable, Literal
 
+from .dongles import Dongle, XTarget, ZTarget, DongleTarget, DongleTargetType
 from pyzx import EdgeType, VertexType
 from pyzx.graph.graph_s import GraphS
-
-class DongleType(IntEnum):
-    X = 1
-    Z = 2
-    Y = 3
-
-class Dongle:
-    graph: GraphS
-    dongle_type: DongleType
-    spawn: int
-    distributor: int
-    targets: List[int]
-
-    def __init__(self, graph: GraphS, dongle_type: DongleType,
-                 spawn: int, distributor: int, targets: List[int]):
-        self.graph = graph
-        self.dongle_type = dongle_type
-        self.spawn = spawn
-        self.distributor = distributor
-        self.targets = targets
 
 class BlueGraph(GraphS):
     def __init__(self) -> None:
@@ -33,6 +13,7 @@ class BlueGraph(GraphS):
     def clone(self):
         cpy = GraphS.clone(self)
         cpy._blue = self._blue.copy()
+        cpy._dongles = self._dongles.copy()
 
         return cpy
 
@@ -53,12 +34,15 @@ class BlueGraph(GraphS):
 
         self.remove_edge(edge)
 
-        x_target, x_dongle = self._instantiate_x_dongle()
-        z_target, z_dongle = self._instantiate_z_dongle()
-
         s,t = edge
-        self.add_edges([(s, x_target), (x_target, z_target), (z_target, t)], edgetype=EdgeType.SIMPLE)
-        self._mark_blue([(s, x_target), (x_target, z_target), (z_target, t)])
+
+        z_dongle, z_left, z_right = self._z_dongle()
+        x_dongle, x_left, x_right = self._x_dongle()
+        y_dongle, y_left, y_right = self._y_dongle()
+
+        blue_edges = [(s, z_left), (z_right, x_left), (x_right, y_left), (y_right, t)]
+        self.add_edges(blue_edges, edgetype=EdgeType.SIMPLE)
+        self._mark_blue(blue_edges)
 
         if repack:
             self.pack_circuit_rows()
@@ -67,29 +51,74 @@ class BlueGraph(GraphS):
 
         return x_dongle, z_dongle
 
-    def _instantiate_x_dongle(self) -> Tuple[int, Dongle]:
-        spawn = self.add_vertex(VertexType.X, qubit=-3, row=1.2)
-        dist = self.add_vertex(VertexType.Z, qubit=-2, row=1.2)
-        x = self.add_vertex(VertexType.X, qubit=-1, row=1.2)
-        self.add_edges([(spawn, dist), (dist, x)], edgetype=EdgeType.SIMPLE)
-        self._mark_blue([(dist, x)])
+    def _x_dongle(self) -> Tuple[Dongle, int, int]:
+        dongle = self._instantiate_dongle(types=['X'])
+        return dongle, dongle.targets[0].get_left(), dongle.targets[0].get_right()
 
-        dongle = Dongle(self, DongleType.X, spawn, dist, [x])
+    def _z_dongle(self) -> Tuple[Dongle, int, int]:
+        dongle = self._instantiate_dongle(types=['Z'])
+        return dongle, dongle.targets[0].get_left(), dongle.targets[0].get_right()
+
+    def _y_dongle(self) -> Tuple[Dongle, int, int]:
+        dongle = self._instantiate_dongle(types=['Y'])
+        return dongle, dongle.targets[0].get_left(), dongle.targets[1].get_right()
+
+    def _instantiate_dongle(self, types: Iterable[Literal['X', 'Y', 'Z']]):
+        spawn = self.add_vertex(VertexType.Z, qubit=-4, row=1.2)
+        dist = self.add_vertex(VertexType.X, qubit=-3, row=1.2)
+
+        self.add_edge((spawn, dist), edgetype=EdgeType.SIMPLE)
+        blue_edges = [(spawn, dist)]
+        targets = []
+
+        def _x_target(local_distributor: int) -> XTarget:
+            hadamard_left = self.add_vertex(VertexType.H_BOX, qubit=-1, row=1.7)
+            node = self.add_vertex(VertexType.Z, qubit=-1, row=1.8)
+            hadamard_right = self.add_vertex(VertexType.H_BOX, qubit=-1, row=1.9)
+            blue_edges.extend([
+                (local_distributor, node),
+                (hadamard_left, node),
+                (node, hadamard_right),
+            ])
+            return XTarget(node, hadamard_left, hadamard_right)
+
+        def _z_target(local_distributor: int) -> ZTarget:
+            node = self.add_vertex(VertexType.Z, qubit=-1, row=1.6)
+            blue_edges.append((local_distributor, node))
+            return ZTarget(node)
+
+        for target_type in types:
+            if target_type == 'X':
+                targets.append(_x_target(dist))
+            elif target_type == 'Z':
+                targets.append(_z_target(dist))
+            else:
+                local_dist = self.add_vertex(VertexType.X, qubit=-2, row=1.5)
+                z_target = _z_target(local_dist)
+                x_target = _x_target(local_dist)
+                blue_edges.extend([
+                    (dist, local_dist),
+                    (local_dist, z_target.node),
+                    (local_dist, x_target.node),
+                    (z_target.node, x_target.hadamard_left)
+                ])
+                targets.extend([z_target, x_target])
+
+        self.add_edges(blue_edges, edgetype=EdgeType.SIMPLE)
+        self._mark_blue(blue_edges)
+        dongle = Dongle(self, spawn, dist, targets)
         self._dongles[spawn] = dongle
 
-        return x, dongle
+        return dongle
 
-    def _instantiate_z_dongle(self) -> Tuple[int, Dongle]:
-        spawn = self.add_vertex(VertexType.Z, qubit=-3, row=1.7)
-        dist = self.add_vertex(VertexType.X, qubit=-2, row=1.7)
-        z = self.add_vertex(VertexType.Z, qubit=-1, row=1.7)
-        self.add_edges([(spawn, dist), (dist, z)], edgetype=EdgeType.SIMPLE)
-        self._mark_blue([(dist, z)])
-
-        dongle = Dongle(self, DongleType.Y, spawn, dist, [z])
-        self._dongles[spawn] = dongle
-
-        return z, dongle
-
-    def _instantiate_y_dongle(self) -> Dongle:
-        raise NotImplementedError("Y-Dongles are not yet supported!")
+    def push_target(self, target: DongleTarget, gateway: int) -> None:
+        """ Push the target through the specified node given by the gateway id """
+        gateway_type = self.type(gateway)
+        if gateway_type == VertexType.Z:
+            pass # TODO
+        elif gateway_type == VertexType.X:
+            pass # TODO
+        elif gateway_type == VertexType.H_BOX:
+            pass # TODO (also what if this has multiple legs?
+        else:
+            raise NotImplementedError(f"Gateway type {gateway_type.name} unhandled right now")

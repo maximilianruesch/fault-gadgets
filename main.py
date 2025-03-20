@@ -20,8 +20,9 @@ if __name__ == '__main__':
     ], edgetype=zx.EdgeType.SIMPLE)
 
     g.auto_detect_io()
-    zx.draw(g)
+    tensor_1 = g.to_tensor()
 
-    g.add_dongles((g_z1, g_z2))
+    g.add_dongles((g_z1, g_z2), repack=True)
+    print("Did this preserve the matrix?:", zx.compare_tensors(tensor_1, g.to_tensor()))
 
     zx.draw(g)
