@@ -21,6 +21,9 @@ class DongleTarget:
     def get_target_type(self) -> DongleTargetType:
         return self._target_type
 
+    def set_target_type(self, _target_type: DongleTargetType) -> None:
+        self._target_type = _target_type
+
 class Dongle:
     graph: GraphS
     spawn_node: int
