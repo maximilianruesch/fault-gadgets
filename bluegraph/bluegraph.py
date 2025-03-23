@@ -1,4 +1,4 @@
-from typing import Tuple, Dict, Iterable, Literal, List
+from typing import Tuple, Dict, Iterable, Literal, List, Optional
 
 from .dongles import Dongle, DongleTarget, DongleTargetType
 from pyzx import EdgeType, VertexType
@@ -14,8 +14,8 @@ class BlueGraph(GraphS):
         self._distributors: Dict[int, int] = dict() # ID (main node) -> Distributor
         self._realized: Dict[int, bool] = dict() # ID (main node) -> 'realized' as bool value
 
-    def clone(self):
-        cpy = GraphS.clone(self)
+    def clone(self, instance: Optional['BlueGraph'] = None) -> 'BlueGraph':
+        cpy = GraphS.clone(self, instance)
         cpy._blue = self._blue.copy()
         cpy._targets = self._targets.copy()
         cpy._in_dongle = self._in_dongle.copy()
@@ -24,6 +24,13 @@ class BlueGraph(GraphS):
         cpy._realized = self._realized.copy()
 
         return cpy
+
+    @staticmethod
+    def from_graph(graph: GraphS) -> 'BlueGraph':
+        """
+        Assumes that the given graph has no blue-edge or dongle information attached.
+        """
+        return graph.clone(BlueGraph())
 
     def _add_blue_edges(self, edges: Iterable[Tuple[int, int]]) -> None:
         self.add_edges(edges, edgetype=EdgeType.SIMPLE)
@@ -66,12 +73,21 @@ class BlueGraph(GraphS):
             if self._blue.__contains__(edge):
                 del self._blue[edge]
 
+    def add_all_dongles(self):
+        if len(self._on_edge) != 0:
+            raise ValueError(f"The graph already has some dongles!")
+
+        for edge in list(self.edges()):
+            self.add_dongles(edge)
+
     def add_dongles(self, edge: Tuple[int, int], repack=False) -> Tuple[Dongle, Dongle, Dongle]:
         edge_type = self.edge_type(edge)
         if edge_type == 0:
             raise ValueError('Edge to convert is not in graph!')
         elif not edge_type == EdgeType.SIMPLE:
             raise ValueError('Edge to convert must be a simple edge!')
+        elif edge in self._on_edge.values() or (edge[0], edge[1]) in self._on_edge.values():
+            raise ValueError('Edge to populate is already populated!')
 
         self.remove_edge(edge)
 
