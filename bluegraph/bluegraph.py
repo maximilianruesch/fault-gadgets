@@ -9,6 +9,7 @@ class BlueGraph(GraphS):
         GraphS.__init__(self)
         self._blue: Dict[Tuple[int, int], bool] = dict()
         self._targets: Dict[int, DongleTarget] = dict() # ID (main node) -> Target
+        self._on_edge: Dict[int, Tuple[int, int]] = dict() # ID (main node) -> 'real' edge the target is on
         self._distributors: Dict[int, int] = dict() # ID (main node) -> Distributor
         self._realized: Dict[int, bool] = dict() # ID (main node) -> 'realized' as bool value
 
@@ -16,6 +17,7 @@ class BlueGraph(GraphS):
         cpy = GraphS.clone(self)
         cpy._blue = self._blue.copy()
         cpy._targets = self._targets.copy()
+        cpy._on_edge = self._on_edge.copy()
         cpy._distributors = self._distributors.copy()
         cpy._realized = self._realized.copy()
 
@@ -28,6 +30,10 @@ class BlueGraph(GraphS):
 
     def _is_blue(self, edge: Tuple[int, int]) -> bool:
         return self._blue[edge]
+
+    def _set_on_edge(self, target_ids: Iterable[int], edge: Tuple[int, int]) -> None:
+        for target_id in target_ids:
+            self._on_edge[target_id] = edge
 
     def _local_target_info(self, id_node: int) -> Tuple[int, int, int]:
         """
@@ -81,6 +87,7 @@ class BlueGraph(GraphS):
         ]
         self.add_edges(blue_edges, edgetype=EdgeType.SIMPLE)
         self._mark_blue(blue_edges)
+        self._set_on_edge([z_target, x_target, y_target_1, y_target_2], edge)
 
         if repack:
             self.pack_circuit_rows()
@@ -180,30 +187,32 @@ class BlueGraph(GraphS):
         if self._realized[id_node]: raise ValueError("Target already realized, cannot push!")
         dist, s, t = self._local_target_info(id_node)
 
-        common_nodes = {s,t}.intersection(new_edge)
+        old_edge = self._on_edge[id_node]
+        common_nodes = set(old_edge).intersection(new_edge)
         if len(common_nodes) == 2:
             raise ValueError(f"Given target is already on the edge: {new_edge}!")
         elif len(common_nodes) == 0:
-            raise ValueError(f"Given edge {new_edge} is not adjacent to dongle target edge {(s,t)}!")
+            raise ValueError(f"Given edge {new_edge} is not adjacent to dongle target edge {old_edge}!")
 
         gateway = common_nodes.pop()
         gateway_type = self.type(gateway)
+
+        def _phase_through():
+            # Simply push through (also phases through other dongle targets)
+            self.remove_edges([new_edge, (s, id_node), (t, id_node)])
+            added_edges = [(s, t), (new_edge[1], id_node), (new_edge[0], id_node)]
+            self.add_edges(added_edges)
+            self._mark_blue(added_edges)
+            self._on_edge[id_node] = new_edge
+
         if gateway_type == VertexType.Z:
             if target.get_target_type() == DongleTargetType.Z:
-                # Simply push through
-                self.remove_edges([new_edge, (s, id_node), (t, id_node)])
-                added_edges = [(s, t), (new_edge[1], id_node), (new_edge[0], id_node)]
-                self.add_edges(added_edges)
-                self._mark_blue(added_edges)
+                _phase_through()
             else:
                 raise NotImplementedError("Cannot push X target through Z node for now!")
         elif gateway_type == VertexType.X:
             if target.get_target_type() == DongleTargetType.X:
-                # Simply push through
-                self.remove_edges([new_edge, (s, id_node), (t, id_node)])
-                added_edges = [(s, t), (new_edge[1], id_node), (new_edge[0], id_node)]
-                self.add_edges(added_edges)
-                self._mark_blue(added_edges)
+                _phase_through()
             else:
                 raise NotImplementedError("Cannot push Z target through X node for now!")
         elif gateway_type == VertexType.H_BOX:
