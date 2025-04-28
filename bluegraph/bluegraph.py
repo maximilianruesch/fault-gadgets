@@ -1,5 +1,6 @@
 from typing import Tuple, Dict, Iterable, Literal, List, Optional
 
+from pyzx.hsimplify import hadamard_simp
 from .dongles import Dongle, DongleTarget, DongleTargetType
 from pyzx import EdgeType, VertexType
 from pyzx.graph.graph_s import GraphS
@@ -93,39 +94,29 @@ class BlueGraph(GraphS):
 
         s,t = edge
 
-        z_dongle, z_target = self._z_dongle()
-        x_dongle, x_target = self._x_dongle()
-        y_dongle, y_target_1, y_target_2 = self._y_dongle()
+        x_dongle = self._instantiate_dongle(types=['X'])
+        x_target = x_dongle.targets[0].get_id()
+        z_dongle = self._instantiate_dongle(types=['Z'])
+        z_target = z_dongle.targets[0].get_id()
+        y_dongle = self._instantiate_dongle(types=['Y'])
+        y_target_1, y_target_2 = y_dongle.targets[0].get_id(), y_dongle.targets[1].get_id()
 
         self._add_blue_edges([
-            (s, z_target),
-            (z_target, x_target),
-            (x_target, y_target_1),
+            (s, x_target),
+            (x_target, z_target),
+            (z_target, y_target_1),
             (y_target_1, y_target_2),
             (y_target_2, t),
         ])
-        self._set_on_edge([z_target, x_target, y_target_1, y_target_2], edge)
+        self._set_on_edge([x_target, z_target, y_target_1, y_target_2], edge)
 
         if repack:
             self.pack_circuit_rows()
-
         assert self.is_well_formed(), "Circuit is not well formed anymore!"
 
         return x_dongle, z_dongle, y_dongle
 
-    def _x_dongle(self) -> Tuple[Dongle, int]:
-        dongle = self._instantiate_dongle(types=['X'])
-        return dongle, dongle.targets[0].get_id()
-
-    def _z_dongle(self) -> Tuple[Dongle, int]:
-        dongle = self._instantiate_dongle(types=['Z'])
-        return dongle, dongle.targets[0].get_id()
-
-    def _y_dongle(self) -> Tuple[Dongle, int, int]:
-        dongle = self._instantiate_dongle(types=['Y'])
-        return dongle, dongle.targets[0].get_id(), dongle.targets[1].get_id()
-
-    def _instantiate_dongle(self, types: Iterable[Literal['X', 'Y', 'Z']]):
+    def _instantiate_dongle(self, types: Iterable[Literal['X', 'Y', 'Z']]) -> Dongle:
         spawn = self.add_vertex(VertexType.Z, qubit=-4, row=1.2)
         dist = self.add_vertex(VertexType.X, qubit=-3, row=1.2)
 
@@ -139,10 +130,8 @@ class BlueGraph(GraphS):
             elif target_type == 'Z':
                 targets.append(self._add_target(DongleTargetType.Z, dist))
             else:
-                local_dist = self.add_vertex(VertexType.X, qubit=-2, row=1.5)
-                targets.append(self._add_target(DongleTargetType.X, local_dist))
-                targets.append(self._add_target(DongleTargetType.Z, local_dist))
-                blue_edges.append((dist, local_dist))
+                targets.append(self._add_target(DongleTargetType.X, dist))
+                targets.append(self._add_target(DongleTargetType.Z, dist))
 
         self._add_blue_edges(blue_edges)
         dongle = Dongle(self, spawn, dist, targets)
@@ -187,8 +176,12 @@ class BlueGraph(GraphS):
         for target in targets:
             self._remove_target(target)
 
-    def realise_all_targets(self) -> None:
+    def realise_all_targets(self, h_edges=False) -> None:
+        hadamards = []
         for id_node, target in self._targets.items():
+            if self._realized[id_node]:
+                continue
+
             ntype = target.get_target_type()
             dist, adj_left, adj_right = self._local_target_info(id_node)
 
@@ -197,6 +190,7 @@ class BlueGraph(GraphS):
                 hadamard_left = self.add_vertex(VertexType.H_BOX, qubit=-1, row=1.7)
                 new_node = self.add_vertex(VertexType.Z, qubit=-1, row=1.8)
                 hadamard_right = self.add_vertex(VertexType.H_BOX, qubit=-1, row=1.9)
+                hadamards.extend([hadamard_left, hadamard_right])
                 new_edges.extend([
                     (dist, new_node),
                     (hadamard_left, new_node),
@@ -216,6 +210,9 @@ class BlueGraph(GraphS):
             self.remove_vertex(id_node)
             self._add_blue_edges(new_edges)
             self._realized[id_node] = True
+
+        if h_edges:
+            hadamard_simp(self, matchf=lambda h: h in hadamards)
 
     def push_target(self, target: DongleTarget, new_edge: Tuple[int, int]) -> None:
         """
