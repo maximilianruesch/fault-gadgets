@@ -94,11 +94,11 @@ class BlueGraph(GraphS):
 
         s,t = edge
 
-        x_dongle = self._instantiate_dongle(types=['X'])
+        x_dongle = self._add_dongle(types=['X'])
         x_target = x_dongle.targets[0].get_id()
-        z_dongle = self._instantiate_dongle(types=['Z'])
+        z_dongle = self._add_dongle(types=['Z'])
         z_target = z_dongle.targets[0].get_id()
-        y_dongle = self._instantiate_dongle(types=['Y'])
+        y_dongle = self._add_dongle(types=['Y'])
         y_target_1, y_target_2 = y_dongle.targets[0].get_id(), y_dongle.targets[1].get_id()
 
         self._add_blue_edges([
@@ -116,7 +116,7 @@ class BlueGraph(GraphS):
 
         return x_dongle, z_dongle, y_dongle
 
-    def _instantiate_dongle(self, types: Iterable[Literal['X', 'Y', 'Z']]) -> Dongle:
+    def _add_dongle(self, types: Iterable[Literal['X', 'Y', 'Z']]) -> Dongle:
         spawn = self.add_vertex(VertexType.Z, qubit=-4, row=1.2)
         dist = self.add_vertex(VertexType.X, qubit=-3, row=1.2)
 
@@ -125,12 +125,9 @@ class BlueGraph(GraphS):
         targets = []
 
         for target_type in types:
-            if target_type == 'X':
+            if target_type == 'X' or target_type == 'Y':
                 targets.append(self._add_target(DongleTargetType.X, dist))
-            elif target_type == 'Z':
-                targets.append(self._add_target(DongleTargetType.Z, dist))
-            else:
-                targets.append(self._add_target(DongleTargetType.X, dist))
+            if target_type == 'Z' or target_type == 'Y':
                 targets.append(self._add_target(DongleTargetType.Z, dist))
 
         self._add_blue_edges(blue_edges)
@@ -140,7 +137,7 @@ class BlueGraph(GraphS):
 
         return dongle
 
-    def _add_target(self, _type: DongleTargetType, local_distributor: int):
+    def _add_target(self, _type: DongleTargetType, local_distributor: int) -> DongleTarget:
         # TODO choose a more appropriate node type
         _id_node = self.add_vertex(VertexType.Z_BOX, qubit=-1, row=1.7)
         _target = DongleTarget(
