@@ -140,10 +140,7 @@ class BlueGraph(GraphS):
     def _add_target(self, _type: DongleTargetType, local_distributor: int) -> DongleTarget:
         # TODO choose a more appropriate node type
         _id_node = self.add_vertex(VertexType.Z_BOX, qubit=-1, row=1.7)
-        _target = DongleTarget(
-            _id=_id_node,
-            target_type=_type
-        )
+        _target = DongleTarget(_id=_id_node, _type=_type)
         self._targets[_id_node] = _target
         self._distributors[_id_node] = local_distributor
         self._realized[_id_node] = False
@@ -179,7 +176,7 @@ class BlueGraph(GraphS):
             if self._realized[id_node]:
                 continue
 
-            ntype = target.get_target_type()
+            ntype = target.get_type()
             dist, adj_left, adj_right = self._local_target_info(id_node)
 
             new_edges = []
@@ -279,21 +276,19 @@ class BlueGraph(GraphS):
             self._remove_target(target)
 
         if gateway_type == VertexType.Z:
-            if target.get_target_type() == DongleTargetType.Z:
+            if target.get_type() == DongleTargetType.Z:
                 _phase_through()
             else:
                 _multiply_through(DongleTargetType.X)
         elif gateway_type == VertexType.X:
-            if target.get_target_type() == DongleTargetType.X:
+            if target.get_type() == DongleTargetType.X:
                 _phase_through()
             else:
                 _multiply_through(DongleTargetType.Z)
         elif gateway_type == VertexType.H_BOX:
             # Can just teleport through by converting to other target type
             _phase_through()
-            target.set_target_type(
-                DongleTargetType.Z if target.get_target_type() == DongleTargetType.X else DongleTargetType.X
-            )
+            target.set_type(target.get_type().flip())
         else:
             raise NotImplementedError(f"Gateway type {gateway_type.name} unhandled right now!")
 
@@ -303,7 +298,7 @@ class BlueGraph(GraphS):
             z_targets_by_edge: Dict[Tuple[int, int], List[DongleTarget]] = dict()
             for target in dongle.targets:
                 edge = self._on_edge[target.get_id()]
-                if target.get_target_type() == DongleTargetType.X:
+                if target.get_type() == DongleTargetType.X:
                     if not x_targets_by_edge.__contains__(edge):
                         x_targets_by_edge[edge] = []
                     x_targets_by_edge[edge].append(target)
