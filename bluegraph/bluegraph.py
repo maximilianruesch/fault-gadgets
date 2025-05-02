@@ -16,7 +16,7 @@ class BlueGraph(GraphS):
         self._realized: Dict[int, bool] = dict() # ID (main node) -> 'realized' as bool value
 
     def clone(self, instance: Optional['BlueGraph'] = None) -> 'BlueGraph':
-        cpy = GraphS.clone(self, instance)
+        cpy = GraphS.clone(self, BlueGraph())
         cpy._blue = self._blue.copy()
         cpy._targets = self._targets.copy()
         cpy._in_dongle = self._in_dongle.copy()
@@ -90,10 +90,6 @@ class BlueGraph(GraphS):
         elif edge in self._on_edge.values() or (edge[0], edge[1]) in self._on_edge.values():
             raise ValueError('Edge to populate is already populated!')
 
-        self.remove_edge(edge)
-
-        s,t = edge
-
         x_dongle = self._add_dongle(types=['X'])
         x_target = x_dongle.targets[0].get_id()
         z_dongle = self._add_dongle(types=['Z'])
@@ -101,6 +97,7 @@ class BlueGraph(GraphS):
         y_dongle = self._add_dongle(types=['Y'])
         y_target_1, y_target_2 = y_dongle.targets[0].get_id(), y_dongle.targets[1].get_id()
 
+        s,t = edge
         self._add_blue_edges([
             (s, x_target),
             (x_target, z_target),
@@ -109,6 +106,7 @@ class BlueGraph(GraphS):
             (y_target_2, t),
         ])
         self._set_on_edge([x_target, z_target, y_target_1, y_target_2], edge)
+        self.remove_edge(edge)
 
         if repack:
             self.pack_circuit_rows()
@@ -117,8 +115,8 @@ class BlueGraph(GraphS):
         return x_dongle, z_dongle, y_dongle
 
     def _add_dongle(self, types: Iterable[Literal['X', 'Y', 'Z']]) -> Dongle:
-        spawn = self.add_vertex(VertexType.Z, qubit=-4, row=1.2)
-        dist = self.add_vertex(VertexType.X, qubit=-3, row=1.2)
+        spawn = self.add_vertex(VertexType.Z, qubit=-3, row=1.2)
+        dist = self.add_vertex(VertexType.X, qubit=-2, row=2.5)
 
         self.add_edge((spawn, dist), edgetype=EdgeType.SIMPLE)
         blue_edges = [(spawn, dist)]
@@ -139,7 +137,7 @@ class BlueGraph(GraphS):
 
     def _add_target(self, _type: DongleTargetType, local_distributor: int) -> DongleTarget:
         # TODO choose a more appropriate node type
-        _id_node = self.add_vertex(VertexType.Z_BOX, qubit=-1, row=1.7)
+        _id_node = self.add_vertex(VertexType.Z_BOX)
         _target = DongleTarget(_id=_id_node, _type=_type)
         self._targets[_id_node] = _target
         self._distributors[_id_node] = local_distributor
@@ -178,12 +176,13 @@ class BlueGraph(GraphS):
 
             ntype = target.get_type()
             dist, adj_left, adj_right = self._local_target_info(id_node)
+            id_qubit, id_row = self.qubit(id_node), self.row(id_node)
 
             new_edges = []
             if ntype == DongleTargetType.X:
-                hadamard_left = self.add_vertex(VertexType.H_BOX, qubit=-1, row=1.7)
-                new_node = self.add_vertex(VertexType.Z, qubit=-1, row=1.8)
-                hadamard_right = self.add_vertex(VertexType.H_BOX, qubit=-1, row=1.9)
+                hadamard_left = self.add_vertex(VertexType.H_BOX, qubit=id_qubit, row=id_row - 0.01)
+                new_node = self.add_vertex(VertexType.Z, qubit=id_qubit, row=id_row)
+                hadamard_right = self.add_vertex(VertexType.H_BOX, qubit=id_qubit, row=id_row + 0.01)
                 hadamards.extend([hadamard_left, hadamard_right])
                 new_edges.extend([
                     (dist, new_node),
@@ -193,7 +192,7 @@ class BlueGraph(GraphS):
                     (adj_right, hadamard_right),
                 ])
             elif ntype == DongleTargetType.Z:
-                new_node = self.add_vertex(VertexType.Z, qubit=-1, row=1.6)
+                new_node = self.add_vertex(VertexType.Z, qubit=id_qubit, row=id_row)
                 new_edges.extend([
                     (dist, new_node),
                     (adj_left, new_node),
@@ -206,9 +205,9 @@ class BlueGraph(GraphS):
             self._realized[id_node] = True
 
         if h_edges:
-            hadamard_simp(self, matchf=lambda h: h in hadamards)
+            hadamard_simp(self, matchf=lambda h: h in hadamards, quiet=True)
 
-    def push_target(self, target: DongleTarget, new_edge: Tuple[int, int]) -> None:
+    def push_target(self, target: DongleTarget, new_edge: Tuple[int, int]) -> Iterable[DongleTarget]: # TODO handle hadamard edges
         """
         Push the target to the next edge which must be adjacent.
         May have side effects on the target / introduce new targets / remove target.
@@ -256,14 +255,16 @@ class BlueGraph(GraphS):
             self._add_blue_edges([(_s, _t), (new_edge[1], id_node), (new_edge[0], id_node)])
             self._on_edge[id_node] = new_edge
 
-        def _multiply_through(_type: DongleTargetType):
+        def _multiply_through(_type: DongleTargetType) -> Iterable[DongleTarget]:
             _s, _t = _teleport()
             dongle = self._in_dongle[id_node]
+            new_targets = []
             for e1, e2 in list(self.edges(gateway)):
                 other = e1 if gateway == e2 else e2
                 if other != id_node:
                     self.remove_edge((e1, e2))
                     new_target = self._add_target(_type, dist)
+                    new_targets.append(new_target)
                     dongle.targets.append(new_target)
                     self._add_blue_edges([(e1, new_target.get_id()), (e2, new_target.get_id())])
                     self._in_dongle[new_target.get_id()] = dongle
@@ -274,21 +275,25 @@ class BlueGraph(GraphS):
                         self._on_edge[new_target.get_id()] = (e1, e2)
 
             self._remove_target(target)
+            return new_targets
 
         if gateway_type == VertexType.Z:
             if target.get_type() == DongleTargetType.Z:
                 _phase_through()
+                return [target]
             else:
-                _multiply_through(DongleTargetType.X)
+                return _multiply_through(DongleTargetType.X)
         elif gateway_type == VertexType.X:
             if target.get_type() == DongleTargetType.X:
                 _phase_through()
+                return [target]
             else:
-                _multiply_through(DongleTargetType.Z)
+                return _multiply_through(DongleTargetType.Z)
         elif gateway_type == VertexType.H_BOX:
             # Can just teleport through by converting to other target type
             _phase_through()
             target.set_type(target.get_type().flip())
+            return [target]
         else:
             raise NotImplementedError(f"Gateway type {gateway_type.name} unhandled right now!")
 
@@ -318,4 +323,32 @@ class BlueGraph(GraphS):
                 if len(targets) % 2 == 1:
                     targets.pop()
                 self._remove_targets(targets)
+
+    def adjust_all_dongle_positions(self):
+        targets_by_edge: Dict[Tuple[int, int], List[DongleTarget]] = dict()
+        for target_id, edge in self._on_edge.items():
+            if edge not in targets_by_edge:
+                targets_by_edge[edge] = []
+            targets_by_edge[edge].append(self._targets[target_id])
+
+        for edge, targets in targets_by_edge.items():
+            s,t = edge
+            s_qubit, s_row = self.qubit(s), self.row(s)
+            t_qubit, t_row = self.qubit(t), self.row(t)
+
+            if s_qubit == t_qubit: # Horizontal
+                for idx, target in enumerate(targets):
+                    self.set_qubit(target.get_id(), s_qubit)
+                    self.set_row(target.get_id(), s_row + (t_row - s_row) * ((float(idx) + 1) / (len(targets) + 1)))
+            elif s_row == t_row: # Vertical
+                for idx, target in enumerate(targets):
+                    self.set_qubit(target.get_id(), s_qubit + (t_qubit - s_qubit) * ((float(idx) + 1) / (len(targets) + 1)))
+                    self.set_row(target.get_id(), s_row)
+            else:
+                raise ValueError("Underlying diagram is not on a grid!")
+
+        for dongle in self._in_dongle.values():
+            avg_row = sum([self.row(target.get_id()) for target in dongle.targets]) / len(dongle.targets)
+            self.set_row(dongle.distributor_node, avg_row)
+            self.set_row(dongle.spawn_node, avg_row)
 
