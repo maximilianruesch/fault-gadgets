@@ -20,7 +20,7 @@ class ShieldedGraph(GraphS):
         cpy = GraphS.clone(self, instance)
         cpy._target_id_index = self._target_id_index
         cpy._targets = self._targets.copy() # TODO ensure this is a deep copy
-        cpy._main_nodes = self._targets.copy()
+        cpy._main_nodes = self._main_nodes.copy()
         cpy._in_dongle = self._in_dongle.copy() # TODO ensure this is a deep copy
         cpy._on_edge = self._on_edge.copy()
 
