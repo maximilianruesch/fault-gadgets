@@ -1,8 +1,8 @@
 import pyzx as zx
-from bluegraph import BlueGraph
+from dongle import ShieldedGraph
 
 if __name__ == '__main__':
-    g = BlueGraph()
+    g = ShieldedGraph()
     g_b1 = g.add_vertex(zx.VertexType.BOUNDARY, qubit=0, row=0)
     g_b2 = g.add_vertex(zx.VertexType.BOUNDARY, qubit=1, row=0)
     g_b3 = g.add_vertex(zx.VertexType.BOUNDARY, qubit=0, row=3)
@@ -22,7 +22,8 @@ if __name__ == '__main__':
     g.auto_detect_io()
     tensor_1 = g.to_tensor()
 
-    g.add_dongles((g_z1, g_z2), repack=True)
+    g.add_dongles((g_z1, g_z2))
+    g.full_instance(h_edges=True)
     print("Did this preserve the matrix?:", zx.compare_tensors(tensor_1, g.to_tensor()))
 
     zx.draw(g)
