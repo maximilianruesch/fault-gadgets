@@ -1,6 +1,7 @@
 from typing import Tuple, Dict, Iterable, Literal, List, Optional, Union
 
 from pyzx.hsimplify import hadamard_simp
+from pyzx.pauliweb import PauliWeb
 from .dongles import Dongle, DongleTarget, DongleTargetType, SlimDongle
 from pyzx import EdgeType, VertexType
 from pyzx.graph.graph_s import GraphS
@@ -144,7 +145,7 @@ class ShieldedGraph(GraphS):
         dongles_instanced: Dict[SlimDongle, Dongle] = dict()
         for edge, targets in self._targets_by_edge().items():
             if self.edge_type(edge) == 0:
-                raise ValueError('Edge to instance on is not in graph, maybe targets were already instantiated on it?')
+                raise ValueError(f'Edge {edge} to instance on is not in graph, maybe targets were already instantiated on it?')
 
             left, right = edge
             self.remove_edge(edge)
@@ -297,3 +298,10 @@ class ShieldedGraph(GraphS):
             return [target]
         else:
             raise NotImplementedError(f"Gateway type {gateway_type.name} unhandled right now!")
+
+    def fire_web_onto_dongle(self, dongle: SlimDongle, web: PauliWeb) -> None:
+        for edge, pauli in web.half_edges().items():
+            if pauli == 'X' or pauli == 'Y':
+                self._add_target(DongleTargetType.X, dongle=dongle, edge=edge)
+            elif pauli == 'Z' or pauli == 'Y':
+                self._add_target(DongleTargetType.Z, dongle=dongle, edge=edge)
