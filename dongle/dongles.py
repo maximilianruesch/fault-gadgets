@@ -27,27 +27,15 @@ class DongleTarget:
     def set_type(self, _type: DongleTargetType) -> None:
         self._type = _type
 
-class SlimDongle:
-    graph: GraphS
-    targets: List[DongleTarget]
-
-    def __init__(self, graph: GraphS, targets: List[DongleTarget]):
-        self.graph = graph
-        self.targets = targets
-
 class Dongle:
     graph: GraphS
-    spawn_node: int
-    distributor_node: int
+    spawn: int
+    dist: int
     targets: List[DongleTarget]
 
     def __init__(self, graph: GraphS,
-                 spawn_node: int, distributor_node: int, targets: List[DongleTarget]):
+                 spawn: int, dist: int, targets: List[DongleTarget]):
         self.graph = graph
-        self.spawn_node = spawn_node
-        self.distributor_node = distributor_node
+        self.spawn = spawn
+        self.dist = dist
         self.targets = targets
-
-    @staticmethod
-    def from_slim(slim: SlimDongle, spawn_node: int, distributor_node: int) -> 'Dongle':
-        return Dongle(slim.graph, spawn_node, distributor_node, slim.targets)
