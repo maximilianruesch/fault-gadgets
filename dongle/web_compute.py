@@ -25,12 +25,12 @@ def place_node_between(g: ShieldedGraph, _type: VertexType, n1: int, n2: int) ->
 
     return node
 
-def web_compute(graph: ShieldedGraph, debug: Optional[Dict[str, Any]] = None) -> None:
+def web_compute(graph: ShieldedGraph, debug: Optional[Dict[str, Any]] = None) -> List[PauliWeb]:
     g = graph.clone(ShieldedGraph())
     g.full_instance(h_edges=False) # TODO handle already existing h edges? Maybe with had_edge_to_hbox?
     # Put into graph like ZX form by introducing extra nodes
     new_nodes = []
-    for edge in list(g.edges()):
+    for edge in list(g.edges()): # TODO Make sure to copy algorithm 1 exactly except introducing new nodes in between same color instead of fusing them
         if g.edge_type(edge) != EdgeType.SIMPLE:
             raise ValueError(f"May only handle simple edges for now, {g.edge_type(edge)} given!")
 
@@ -56,7 +56,8 @@ def web_compute(graph: ShieldedGraph, debug: Optional[Dict[str, Any]] = None) ->
             neighbour_boundaries = [v for v in g.neighbors(neighbour) if g.type(v) == VertexType.BOUNDARY]
             if len(neighbour_boundaries) > 1:
                 new_x = place_node_between(g, VertexType.X, boundary, neighbour)
-                place_node_between(g, VertexType.Z, boundary, new_x)
+                new_nodes.append(new_x)
+                new_nodes.append(place_node_between(g, VertexType.Z, boundary, new_x))
     z_boundaries = {list(g.neighbors(b))[0] : b for b in boundaries}
 
     if debug is not None:
@@ -93,7 +94,7 @@ def web_compute(graph: ShieldedGraph, debug: Optional[Dict[str, Any]] = None) ->
     if debug is not None:
         debug['adj_matrix'] = adj_matrix
 
-    m_d = Mat2.zeros(adj_matrix.rows(), adj_matrix.cols() + num_z_boundaries) # TODO add requirement that dongle must be fired?
+    m_d = Mat2.zeros(adj_matrix.rows(), adj_matrix.cols() + num_z_boundaries) # TODO add requirement that dongle must be fired / and inputs may not be fired??
     m_d[0:num_z_boundaries,0:num_z_boundaries] = Mat2.id(num_z_boundaries)
     m_d[:,num_z_boundaries:] = adj_matrix
     num_pi_2 = len(list(filter(lambda _v: g.phase(_v) == Fraction(1, 2), g.vertices())))
@@ -138,3 +139,29 @@ def web_compute(graph: ShieldedGraph, debug: Optional[Dict[str, Any]] = None) ->
     g_webs = list(map(_convert_to_g_web, non_trivial_sols))
     if debug is not None:
         debug['g_webs'] = g_webs
+
+    def _reduce(g_web: PauliWeb) -> PauliWeb:
+        web = PauliWeb(graph)
+        done = dict()
+        for e,pauli in g_web.half_edges().items():
+            left, right = e
+            last_left, last_right = right, left
+            while left in new_nodes:
+                n1, n2 = g.neighbors(left)
+                new_left = n1 if n2 == last_left else n2
+                last_left = left
+                left = new_left
+            while right in new_nodes:
+                n1, n2 = g.neighbors(right)
+                new_right = n1 if n2 == last_right else n2
+                last_right = right
+                right = new_right
+
+            new_e = left, right
+            if new_e not in done:
+                done[new_e] = True
+                web.add_half_edge(new_e, pauli)
+
+        return web
+
+    return list(map(_reduce, g_webs))
