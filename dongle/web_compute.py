@@ -112,21 +112,29 @@ def web_compute(graph: ShieldedGraph, debug: Optional[Dict[str, Any]] = None) ->
     # Convert firing assignments to pauli webs
     def _convert_to_g_web(v: List[Z2]) -> PauliWeb:
         g_web = PauliWeb(g)
-        for adj_vertex,g_vertex in vertex_backward.items():
-            if g_vertex in z_boundaries:
-                if v[adj_vertex] == 1: # fire boundary green
-                    g_web.add_edge((g_vertex, z_boundaries[g_vertex]), 'Z')
-                if v[adj_vertex + num_z_boundaries] == 1: # fire red
-                    g_web.add_edge((g_vertex, z_boundaries[g_vertex]), 'X')
-            else:
-                if v[adj_vertex + num_z_boundaries] == 1:
-                    g_type = g.type(g_vertex)
-                    fire_type = 'X' if g_type == VertexType.Z else 'Z'
-                    for _n in g.neighbors(g_vertex):
-                        g_web.add_edge((g_vertex, _n), fire_type)
+
+        # Fire all green spiders with full red edges and thus their red neighbours
+        for adj_vertex, g_vertex in vertex_backward.items():
+            g_type = g.type(g_vertex)
+            if g_type == VertexType.Z and v[adj_vertex + num_z_boundaries] == 1:
+                for _n in g.neighbors(g_vertex):
+                    g_web.add_edge((g_vertex, _n), 'X')
+
+        # Fire all red spiders with full green edges and thus their green neighbours
+        for adj_vertex, g_vertex in vertex_backward.items():
+            g_type = g.type(g_vertex)
+            if g_type == VertexType.X and v[adj_vertex + num_z_boundaries] == 1:
+                for _n in g.neighbors(g_vertex):
+                    g_web.add_edge((g_vertex, _n), 'Z')
+
+        # Fire all green output edges
+        for g_z_boundary, g_boundary in z_boundaries.items():
+            adj_z_boundary = vertex_forward[g_z_boundary]
+            if v[adj_z_boundary] == 1:
+                g_web.add_edge((g_z_boundary, g_boundary), 'Z')
 
         return g_web
 
     g_webs = list(map(_convert_to_g_web, non_trivial_sols))
-    if debug is not None: # TODO Debug webs
+    if debug is not None:
         debug['g_webs'] = g_webs
