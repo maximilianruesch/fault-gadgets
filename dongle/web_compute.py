@@ -9,7 +9,8 @@ from pyzx.hsimplify import hadamard_simp
 from pyzx.linalg import Z2
 from pyzx.pauliweb import PauliWeb
 from pyzx.utils import toggle_vertex
-from . import ShieldedGraph
+from . import ShieldedGraph, AdjPauliWeb
+
 
 def _place_node_between(g: ShieldedGraph, _type: VertexType, n1: int, n2: int) -> int:
     node = g.add_vertex(_type)
@@ -27,10 +28,11 @@ def _place_node_between(g: ShieldedGraph, _type: VertexType, n1: int, n2: int) -
 
     return node
 
-def _euler_expand_edges(g: ShieldedGraph) -> None:
+def _euler_expand_edges(g: ShieldedGraph) -> List[Tuple[int, int, int]]:
     """
     A cut down version of pyzx.euler_expansion which does not add global scalars and does not prematurely 'merge' spiders
     """
+    expanded_edges = []
     for v1, v2 in match_hadamard_edge(g):
         w2 = _place_node_between(g, VertexType.X, v1, v2)
         g.add_to_phase(w2, Fraction(1, 2))
@@ -39,7 +41,11 @@ def _euler_expand_edges(g: ShieldedGraph) -> None:
         w3 = _place_node_between(g, VertexType.Z, w2, v2)
         g.add_to_phase(w3, Fraction(1, 2))
 
-def _to_red_green_graphlike(graph: ShieldedGraph, debug: Optional[Dict[str, Any]] = None) -> Tuple[ShieldedGraph, List[int]]:
+        expanded_edges.append((w1, w2, w3))
+
+    return expanded_edges
+
+def _to_red_green_graphlike(graph: ShieldedGraph, debug: Optional[Dict[str, Any]] = None) -> Tuple[ShieldedGraph, List[int], List[Tuple[int, int, int]]]:
     g = graph.clone(ShieldedGraph())
     g.full_instance(h_edges=True)
 
@@ -47,7 +53,7 @@ def _to_red_green_graphlike(graph: ShieldedGraph, debug: Optional[Dict[str, Any]
     hadamard_simp(g, quiet=True)
     if debug is not None:
         debug['g'] = g
-    _euler_expand_edges(g)
+    expanded_hadamards = _euler_expand_edges(g)
 
     if debug is not None:
         debug['g'] = g
@@ -108,7 +114,7 @@ def _to_red_green_graphlike(graph: ShieldedGraph, debug: Optional[Dict[str, Any]
         debug['gh'] = gc
         debug['graphlike'] = is_graph_like(gc, strict=True)
 
-    return g, new_nodes
+    return g, new_nodes, expanded_hadamards
 
 def _determine_ordering(g: ShieldedGraph, debug: Optional[Dict[str, Any]] = None) -> Tuple[Dict[int, int], Dict[int, int], Dict[int, int], List[int], List[int]]:
     boundaries = [v for v in g.vertices() if g.type(v) == VertexType.BOUNDARY]
@@ -178,7 +184,7 @@ def _solve_firing_verification(
     return non_trivial_sols
 
 def web_compute(graph: ShieldedGraph, debug: Optional[Dict[str, Any]] = None) -> List[PauliWeb]:
-    g, new_nodes = _to_red_green_graphlike(graph, debug)
+    g, new_nodes, expanded_hadamards = _to_red_green_graphlike(graph, debug)
 
     graph_to_ordering, ordering_to_graph, z_boundaries, internal_spiders, pi_2_spiders = _determine_ordering(g, debug)
 
@@ -213,28 +219,12 @@ def web_compute(graph: ShieldedGraph, debug: Optional[Dict[str, Any]] = None) ->
     if debug is not None:
         debug['g_webs'] = g_webs
 
-    def _reduce(g_web: PauliWeb) -> PauliWeb: # TODO handle converted hadamards
-        web = PauliWeb(graph)
-        done = dict()
-        for e,pauli in g_web.half_edges().items():
-            left, right = e
-            last_left, last_right = right, left
-            while left in new_nodes:
-                n1, n2 = g.neighbors(left)
-                new_left = n1 if n2 == last_left else n2
-                last_left = left
-                left = new_left
-            while right in new_nodes:
-                n1, n2 = g.neighbors(right)
-                new_right = n1 if n2 == last_right else n2
-                last_right = right
-                right = new_right
-
-            new_e = left, right
-            if new_e not in done:
-                done[new_e] = True
-                web.add_half_edge(new_e, pauli)
-
-        return web
+    def _reduce(g_web: PauliWeb) -> PauliWeb:
+        adj_web = AdjPauliWeb.from_regular_web(g_web)
+        for n in new_nodes:
+            adj_web.remove_id(n)
+        for h in expanded_hadamards:
+            adj_web.remove_hadamard(h)
+        return adj_web.to_regular_web(graph)
 
     return list(map(_reduce, g_webs))
