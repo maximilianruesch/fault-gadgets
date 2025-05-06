@@ -11,8 +11,6 @@ from pyzx.pauliweb import PauliWeb
 from pyzx.utils import toggle_vertex
 from . import ShieldedGraph
 
-ALLOWED_TYPES = [VertexType.Z, VertexType.X, VertexType.BOUNDARY]
-
 def _place_node_between(g: ShieldedGraph, _type: VertexType, n1: int, n2: int) -> int:
     node = g.add_vertex(_type)
     n1_qubit, n1_row = g.qubit(n1), g.row(n1)
