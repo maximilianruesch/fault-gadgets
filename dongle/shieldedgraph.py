@@ -1,7 +1,7 @@
-from typing import Tuple, Dict, Iterable, Literal, List, Optional, Union
+from typing import Tuple, Dict, Iterable, Literal, List, Optional
 
-from pyzx.hsimplify import hadamard_simp
 from pyzx.pauliweb import PauliWeb
+from pyzx.utils import toggle_edge
 from .dongles import Dongle, DongleTarget, DongleTargetType
 from pyzx import EdgeType, VertexType
 from pyzx.graph.graph_s import GraphS
@@ -16,7 +16,6 @@ class ShieldedGraph(GraphS):
         self._in_dongle: Dict[int, Dongle] = dict() # target ID -> Dongle of target
         self._on_edge: Dict[int, ET] = dict() # target ID -> edge the target is on
         self._targets_by_edge: Dict[ET, List[int]] = dict() # edge -> target ID
-        self._instances: Dict[int, Union[int, Tuple[int, int, int]]] = dict()
 
     def clone(self, instance: Optional['ShieldedGraph'] = None) -> 'ShieldedGraph':
         # TODO ensure these are deep copies
@@ -210,48 +209,18 @@ class ShieldedGraph(GraphS):
     #                       Realising                         #
     ###########################################################
 
-    def realise_all_targets(self, h_edges=False) -> None:
-        hadamards = []
+    def realise_all_targets(self) -> None:
         for edge, targets in self._targets_by_edge.items():
-            # Connect all lefts and rights
-            left, right = edge
             for _id in targets:
-                target = self._targets[_id]
-                id_qubit, id_row = self.qubit(_id), self.row(_id)
-                self.remove_vertex(_id)
-                dongle = self._in_dongle[_id]
-                if target.get_type() == DongleTargetType.X:
-                    hadamard_left = self.add_vertex(VertexType.H_BOX, qubit=id_qubit, row=id_row - 0.01)
-                    new_node = self.add_vertex(VertexType.Z, qubit=id_qubit, row=id_row)
-                    hadamard_right = self.add_vertex(VertexType.H_BOX, qubit=id_qubit, row=id_row + 0.01)
-                    hadamards.extend([hadamard_left, hadamard_right])
-                    self._instances[_id] = (hadamard_left, new_node, hadamard_right)
-                    self.add_edges([
-                        (hadamard_left, new_node),
-                        (dongle.dist, new_node),
-                        (new_node, hadamard_right),
-                        (left, hadamard_left),
-                    ])
-                    left = hadamard_right
-                elif target.get_type() == DongleTargetType.Z:
-                    new_node = self.add_vertex(VertexType.Z, qubit=id_qubit, row=id_row)
-                    self._instances[_id] = new_node
-                    self.add_edges([
-                        (dongle.dist, new_node),
-                        (left, new_node),
-                    ])
-                    left = new_node
-                else:
-                    raise RuntimeError(f"Unexpected target type: {target.get_type()}")
+                self.set_type(_id, VertexType.Z)
+                left, right = self._local_info(_id)
+                if self._targets[_id].get_type() == DongleTargetType.X:
+                    self.set_edge_type((left, _id), toggle_edge(self.edge_type((left, _id))))
+                    self.set_edge_type((_id, right), toggle_edge(self.edge_type((_id, right))))
 
-            self.add_edge((left, right))
-
-        if h_edges:
-            hadamard_simp(self, matchf=lambda h: h in hadamards, quiet=True)
-
-    def full_instance(self, h_edges=False) -> None:
+    def full_instance(self) -> None:
         self.reassign_dongle_positions()
-        self.realise_all_targets(h_edges=h_edges)
+        self.realise_all_targets()
         self.pack_circuit_rows()
         self.auto_detect_io()
 
@@ -341,12 +310,3 @@ class ShieldedGraph(GraphS):
                 self._add_target(DongleTargetType.X, dongle=dongle, edge=edge)
             elif pauli == 'Z' or pauli == 'Y':
                 self._add_target(DongleTargetType.Z, dongle=dongle, edge=edge)
-
-    def fire_spider_onto_dongle(self, dongle: Dongle, spider: int, web: PauliWeb) -> None:
-        local_web = web.copy()
-        new_es = dict()
-        for e,p in local_web.es.items():
-            if e[0] == spider or e[1] == spider:
-                new_es[e] = p
-        local_web.es = new_es
-        self.fire_web_onto_dongle(dongle, local_web)

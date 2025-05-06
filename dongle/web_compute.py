@@ -47,7 +47,7 @@ def _euler_expand_edges(g: ShieldedGraph) -> List[Tuple[int, int, int]]:
 
 def _to_red_green_graphlike(graph: ShieldedGraph, debug: Optional[Dict[str, Any]] = None) -> Tuple[ShieldedGraph, List[int], List[Tuple[int, int, int]]]:
     g = graph.clone(ShieldedGraph())
-    g.full_instance(h_edges=True)
+    g.full_instance()
 
     # Convert all H-edges and H-boxes to red and green spiders
     hadamard_simp(g, quiet=True)
