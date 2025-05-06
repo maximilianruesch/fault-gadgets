@@ -163,7 +163,6 @@ def _solve_firing_verification(
     if debug is not None:
         debug['adj_matrix'] = adj_matrix
 
-    # TODO add requirement that dongle must be fired? Or just search in solution space?
     m_d = Mat2.zeros(adj_matrix.rows(), adj_matrix.cols() + num_z_boundaries)
     m_d[0:num_z_boundaries, 0:num_z_boundaries] = Mat2.id(num_z_boundaries)
     m_d[:, num_z_boundaries:] = adj_matrix
