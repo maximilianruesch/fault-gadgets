@@ -50,9 +50,7 @@ def web_compute(graph: ShieldedGraph, debug: Optional[Dict[str, Any]] = None) ->
         neighbour = list(g.neighbors(boundary))[0]
         if g.type(neighbour) == VertexType.X: # Ensure boundary is not connected to an X node
             new_nodes.append(place_node_between(g, VertexType.Z, boundary, neighbour))
-    for boundary in boundaries:
-        neighbour = list(g.neighbors(boundary))[0]
-        if g.type(neighbour) == VertexType.Z: # Ensure neighbouring Z spiders are not connected to two boundaries
+        else: # Ensure neighbouring Z spiders are not connected to two boundaries
             neighbour_boundaries = [v for v in g.neighbors(neighbour) if g.type(v) == VertexType.BOUNDARY]
             if len(neighbour_boundaries) > 1:
                 new_x = place_node_between(g, VertexType.X, boundary, neighbour)
