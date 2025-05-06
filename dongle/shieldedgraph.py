@@ -77,9 +77,9 @@ class ShieldedGraph(GraphS):
         elif not edge_type == EdgeType.SIMPLE:
             raise ValueError('Edge to convert must be a simple edge!')
 
-        return (None,
+        return (self._add_dongle(types=['X'], edge=edge),
                 self._add_dongle(types=['Z'], edge=edge),
-                None)
+                self._add_dongle(types=['Y'], edge=edge))
 
     def _add_dongle(self, types: Iterable[Literal['X', 'Y', 'Z']], edge: Optional[ET] = None) -> Dongle:
         spawn = self.add_vertex(VertexType.Z, qubit=-3)

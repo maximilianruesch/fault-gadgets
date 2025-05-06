@@ -1,7 +1,10 @@
-from fractions import Fraction
 from typing import Dict, Optional, Any, List, Tuple
 
-from pyzx import Mat2, VertexType, EdgeType, is_graph_like, to_gh
+import numpy as np
+
+from pyzx import Mat2, VertexType, is_graph_like, to_gh, EdgeType
+from pyzx.editor_actions import match_hadamard_edge, euler_expansion
+from pyzx.hsimplify import hadamard_simp
 from pyzx.linalg import Z2
 from pyzx.pauliweb import PauliWeb
 from pyzx.utils import toggle_vertex
@@ -27,40 +30,68 @@ def _place_node_between(g: ShieldedGraph, _type: VertexType, n1: int, n2: int) -
 
 def _to_red_green_graphlike(graph: ShieldedGraph, debug: Optional[Dict[str, Any]] = None) -> Tuple[ShieldedGraph, List[int]]:
     g = graph.clone(ShieldedGraph())
-    g.full_instance(h_edges=False) # TODO handle already existing h edges? Maybe with had_edge_to_hbox?
-    # Put into graph like ZX form by introducing extra nodes
-    new_nodes = []
-    for edge in list(
-            g.edges()):  # TODO Make sure to copy algorithm 1 exactly except introducing new nodes in between same color instead of fusing them
-        if g.edge_type(edge) != EdgeType.SIMPLE:
-            raise ValueError(f"May only handle simple edges for now, {g.edge_type(edge)} given!")
+    g.full_instance(h_edges=True)
 
-        s, t = edge
-        s_type = g.type(s)
-        t_type = g.type(t)
-        if not s_type in ALLOWED_TYPES or not t_type in ALLOWED_TYPES:
-            raise ValueError(
-                f"May only handle vertex types {','.join(map(lambda _t: _t.name, ALLOWED_TYPES))} for now, {s_type.name} and {t_type.name} given!")
-
-        if s_type == t_type:
-            new_nodes.append(_place_node_between(g, toggle_vertex(s_type), s, t))
-    for dongle in graph.dongles():
-        g.set_type(dongle.spawn, VertexType.BOUNDARY)
-    # Ensure that boundaries are connected to exactly one green node and vice versa
-    boundaries = [v for v in g.vertices() if g.type(v) == VertexType.BOUNDARY]
-    for boundary in boundaries:
-        neighbour = list(g.neighbors(boundary))[0]
-        if g.type(neighbour) == VertexType.X:  # Ensure boundary is not connected to an X node
-            new_nodes.append(_place_node_between(g, VertexType.Z, boundary, neighbour))
-        else:  # Ensure neighbouring Z spiders are not connected to two boundaries
-            neighbour_boundaries = [v for v in g.neighbors(neighbour) if g.type(v) == VertexType.BOUNDARY]
-            if len(neighbour_boundaries) > 1:
-                new_x = _place_node_between(g, VertexType.X, boundary, neighbour)
-                new_nodes.append(new_x)
-                new_nodes.append(_place_node_between(g, VertexType.Z, boundary, new_x))
+    # Convert all H-edges and H-boxes to red and green spiders
+    hadamard_simp(g, quiet=True)
+    h_edges = match_hadamard_edge(g)
+    etab, _, rem_edges, _ = euler_expansion(g, h_edges) # TODO check that euler expansion is as simple as we want it
+    g.add_edge_table(etab)
+    g.remove_edges(rem_edges)
 
     if debug is not None:
         debug['g'] = g
+
+    # Verify that diagram is clifford
+    offending_vertices = []
+    for v in g.vertices():
+        v_type = g.type(v)
+        if g.phase(v).denominator > 2 or\
+            (v_type != VertexType.Z and v_type != VertexType.X and v_type != VertexType.BOUNDARY):
+            offending_vertices.append(v)
+    if len(offending_vertices) > 0:
+        if debug is not None:
+            debug['offending_vertices'] = offending_vertices
+
+        raise AssertionError(f"Given diagram is not a clifford diagram up to hadamard expansion. The following "
+                             f"vertices are either not of type X,Z,BOUNDARY or have a non-clifford "
+                             f"phase: {', '.join(map(str, offending_vertices))}")
+    offending_edges = [e for e in g.edges() if g.edge_type(e) != EdgeType.SIMPLE]
+    if len(offending_edges) > 0:
+        if debug is not None:
+            debug['offending_edges'] = offending_edges
+
+        raise AssertionError(f"Given diagram is not a clifford diagram up to hadamard expansion. The following "
+                             f"edges are not simple edges: {', '.join(map(str, offending_edges))}")
+
+    # Introduce intermediate nodes
+    new_nodes = []
+    for s, t in list(g.edges()):
+        if g.type(s) == g.type(t):
+            new_nodes.append(_place_node_between(g, toggle_vertex(g.type(s)), s, t))
+
+    for dongle in graph.dongles():
+        g.set_type(dongle.spawn, VertexType.BOUNDARY)
+
+    # Ensure boundaries are not connected to a red spider
+    boundaries = [v for v in g.vertices() if g.type(v) == VertexType.BOUNDARY]
+    for boundary in boundaries:
+        neighbour = list(g.neighbors(boundary))[0]
+        if g.type(neighbour) == VertexType.X:
+            new_nodes.append(_place_node_between(g, VertexType.Z, boundary, neighbour))
+
+    # Ensure boundaries are not connected to green spiders with nonzero phase or more than one boundary connection
+    for boundary in boundaries:
+        neighbour = list(g.neighbors(boundary))[0]
+        neighbour_boundaries = [v for v in g.neighbors(neighbour) if g.type(v) == VertexType.BOUNDARY]
+        if g.phase(neighbour) != 0 or len(neighbour_boundaries) > 1:
+            new_x = _place_node_between(g, VertexType.X, boundary, neighbour)
+            new_nodes.append(new_x)
+            new_nodes.append(_place_node_between(g, VertexType.Z, boundary, new_x))
+
+    if debug is not None:
+        debug['g'] = g
+        debug['new_nodes'] = new_nodes
         debug['boundaries'] = boundaries
         gc = g.clone(ShieldedGraph())
         to_gh(gc)
@@ -69,10 +100,11 @@ def _to_red_green_graphlike(graph: ShieldedGraph, debug: Optional[Dict[str, Any]
 
     return g, new_nodes
 
-def _determine_ordering(g: ShieldedGraph, debug: Optional[Dict[str, Any]] = None) -> Tuple[Dict[int, int], Dict[int, int], Dict[int, int], List[int]]:
+def _determine_ordering(g: ShieldedGraph, debug: Optional[Dict[str, Any]] = None) -> Tuple[Dict[int, int], Dict[int, int], Dict[int, int], List[int], List[int]]:
     boundaries = [v for v in g.vertices() if g.type(v) == VertexType.BOUNDARY]
     z_boundaries = {list(g.neighbors(b))[0]: b for b in boundaries}
-    z_internals = list(g.vertex_set().difference(boundaries).difference(z_boundaries.keys()))
+    internal_spiders = list(g.vertex_set().difference(boundaries).difference(z_boundaries.keys()))
+    pi_2_spiders = list(filter(lambda _v: g.phase(_v).denominator == 2, internal_spiders))
 
     if debug is not None:
         debug['z_boundaries'] = z_boundaries
@@ -81,26 +113,31 @@ def _determine_ordering(g: ShieldedGraph, debug: Optional[Dict[str, Any]] = None
     graph_to_ordering: Dict[int, int] = dict()
     ordering_to_graph: Dict[int, int] = dict()
     idx = 0
-    for boundary in z_boundaries.keys(): # TODO order pi_2 to the end
+    for boundary in z_boundaries.keys():
         graph_to_ordering[boundary] = idx
         ordering_to_graph[idx] = boundary
         idx += 1
-    for internal in z_internals:
+    for internal in set(internal_spiders).difference(pi_2_spiders):
         graph_to_ordering[internal] = idx
         ordering_to_graph[idx] = internal
         idx += 1
+    for pi_2_spider in pi_2_spiders:
+        graph_to_ordering[pi_2_spider] = idx
+        ordering_to_graph[idx] = pi_2_spider
+        idx += 1
         
-    return graph_to_ordering, ordering_to_graph, z_boundaries, z_internals
+    return graph_to_ordering, ordering_to_graph, z_boundaries, internal_spiders, pi_2_spiders
 
 def _solve_firing_verification(
         g: ShieldedGraph,
         graph_to_ordering: Dict[int, int],
         z_boundaries: Dict[int, int],
-        z_internals: List[int],
+        internal_spiders: List[int],
+        pi_2_spiders: List[int],
         debug: Optional[Dict[str, Any]] = None
 ) -> List[List[int]]:
     num_z_boundaries = len(z_boundaries)
-    num_non_boundary_spiders = num_z_boundaries + len(z_internals)
+    num_non_boundary_spiders = num_z_boundaries + len(internal_spiders)
     adj_matrix = Mat2.zeros(num_non_boundary_spiders, num_non_boundary_spiders)
     for s in g.graph:
         for t in g.graph[s]:
@@ -110,12 +147,13 @@ def _solve_firing_verification(
     if debug is not None:
         debug['adj_matrix'] = adj_matrix
 
-    m_d = Mat2.zeros(adj_matrix.rows(),
-                     adj_matrix.cols() + num_z_boundaries)  # TODO add requirement that dongle must be fired / and inputs may not be fired??
+    # TODO add requirement that dongle must be fired? Or just search in solution space?
+    m_d = Mat2.zeros(adj_matrix.rows(), adj_matrix.cols() + num_z_boundaries)
     m_d[0:num_z_boundaries, 0:num_z_boundaries] = Mat2.id(num_z_boundaries)
     m_d[:, num_z_boundaries:] = adj_matrix
-    num_pi_2 = len(list(filter(lambda _v: g.phase(_v) == Fraction(1, 2), g.vertices())))
-    m_d[m_d.rows() - num_pi_2:, m_d.rows() - num_pi_2:] = Mat2.id(num_pi_2)
+    num_pi_2 = len(pi_2_spiders)
+    slice_key = (slice(m_d.rows() - num_pi_2, m_d.rows()), slice(m_d.cols() - num_pi_2, m_d.cols()))
+    m_d[slice_key] = Mat2((np.array(m_d[slice_key].data) - np.array(Mat2.id(num_pi_2).data)).tolist())
 
     if debug is not None:
         debug['M_D'] = m_d
@@ -132,9 +170,9 @@ def _solve_firing_verification(
 def web_compute(graph: ShieldedGraph, debug: Optional[Dict[str, Any]] = None) -> List[PauliWeb]:
     g, new_nodes = _to_red_green_graphlike(graph, debug)
 
-    graph_to_ordering, ordering_to_graph, z_boundaries, z_internals = _determine_ordering(g, debug)
+    graph_to_ordering, ordering_to_graph, z_boundaries, internal_spiders, pi_2_spiders = _determine_ordering(g, debug)
 
-    non_trivial_sols = _solve_firing_verification(g, graph_to_ordering, z_boundaries, z_internals, debug)
+    non_trivial_sols = _solve_firing_verification(g, graph_to_ordering, z_boundaries, internal_spiders, pi_2_spiders, debug)
 
     def _convert_to_g_web(v: List[Z2]) -> PauliWeb:
         g_web = PauliWeb(g)
@@ -165,7 +203,7 @@ def web_compute(graph: ShieldedGraph, debug: Optional[Dict[str, Any]] = None) ->
     if debug is not None:
         debug['g_webs'] = g_webs
 
-    def _reduce(g_web: PauliWeb) -> PauliWeb:
+    def _reduce(g_web: PauliWeb) -> PauliWeb: # TODO handle converted hadamards
         web = PauliWeb(graph)
         done = dict()
         for e,pauli in g_web.half_edges().items():
