@@ -1,9 +1,10 @@
+from fractions import Fraction
 from typing import Dict, Optional, Any, List, Tuple
 
 import numpy as np
 
 from pyzx import Mat2, VertexType, is_graph_like, to_gh, EdgeType
-from pyzx.editor_actions import match_hadamard_edge, euler_expansion
+from pyzx.editor_actions import match_hadamard_edge
 from pyzx.hsimplify import hadamard_simp
 from pyzx.linalg import Z2
 from pyzx.pauliweb import PauliWeb
@@ -28,16 +29,27 @@ def _place_node_between(g: ShieldedGraph, _type: VertexType, n1: int, n2: int) -
 
     return node
 
+def _euler_expand_edges(g: ShieldedGraph) -> None:
+    """
+    A cut down version of pyzx.euler_expansion which does not add global scalars and does not prematurely 'merge' spiders
+    """
+    for v1, v2 in match_hadamard_edge(g):
+        w2 = _place_node_between(g, VertexType.X, v1, v2)
+        g.add_to_phase(w2, Fraction(1, 2))
+        w1 = _place_node_between(g, VertexType.Z, v1, w2)
+        g.add_to_phase(w1, Fraction(1, 2))
+        w3 = _place_node_between(g, VertexType.Z, w2, v2)
+        g.add_to_phase(w3, Fraction(1, 2))
+
 def _to_red_green_graphlike(graph: ShieldedGraph, debug: Optional[Dict[str, Any]] = None) -> Tuple[ShieldedGraph, List[int]]:
     g = graph.clone(ShieldedGraph())
     g.full_instance(h_edges=True)
 
     # Convert all H-edges and H-boxes to red and green spiders
     hadamard_simp(g, quiet=True)
-    h_edges = match_hadamard_edge(g)
-    etab, _, rem_edges, _ = euler_expansion(g, h_edges) # TODO check that euler expansion is as simple as we want it
-    g.add_edge_table(etab)
-    g.remove_edges(rem_edges)
+    if debug is not None:
+        debug['g'] = g
+    _euler_expand_edges(g)
 
     if debug is not None:
         debug['g'] = g
