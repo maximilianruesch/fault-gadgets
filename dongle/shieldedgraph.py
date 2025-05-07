@@ -1,6 +1,6 @@
 from typing import Tuple, Dict, Iterable, Literal, List, Optional
 
-from pyzx.pauliweb import PauliWeb
+from pyzx.graph.base import upair
 from pyzx.utils import toggle_edge
 from .dongles import Dongle, DongleTarget, DongleTargetType
 from pyzx import EdgeType, VertexType
@@ -18,13 +18,12 @@ class ShieldedGraph(GraphS):
         self._targets_by_edge: Dict[ET, List[int]] = dict() # edge -> target ID
 
     def clone(self, instance: Optional['ShieldedGraph'] = None) -> 'ShieldedGraph':
-        # TODO ensure these are deep copies
         cpy = GraphS.clone(self, instance)
         cpy._target_id_index = self._target_id_index
-        cpy._targets = self._targets.copy()
-        cpy._in_dongle = self._in_dongle.copy()
+        cpy._targets = { _id: target.copy() for _id, target in self._targets.items() }
+        cpy._in_dongle = { _id: dongle.copy() for _id, dongle in self._in_dongle.items() }
         cpy._on_edge = self._on_edge.copy()
-        cpy._targets_by_edge = self._targets_by_edge.copy()
+        cpy._targets_by_edge = { edge: targets.copy() for edge, targets in self._targets_by_edge.items() }
 
         return cpy
 
@@ -88,13 +87,13 @@ class ShieldedGraph(GraphS):
 
         for target_type in types:
             if target_type == 'X' or target_type == 'Y':
-                self._add_target(DongleTargetType.X, dongle=dongle, edge=edge)
+                self.add_target(DongleTargetType.X, dongle=dongle, edge=edge)
             if target_type == 'Z' or target_type == 'Y':
-                self._add_target(DongleTargetType.Z, dongle=dongle, edge=edge)
+                self.add_target(DongleTargetType.Z, dongle=dongle, edge=edge)
 
         return dongle
 
-    def _add_target(self, _type: DongleTargetType, dongle: Dongle, edge: ET) -> DongleTarget:
+    def add_target(self, _type: DongleTargetType, dongle: Dongle, edge: ET) -> DongleTarget:
         _id = self.add_vertex(VertexType.Z_BOX) # TODO choose a more appropriate node type
         _target = DongleTarget(_id=_id, _type=_type)
         self._targets[_id] = _target
@@ -104,7 +103,7 @@ class ShieldedGraph(GraphS):
         self.add_edge((dongle.dist, _id))
 
         # Connect with neighbouring targets
-        other_targets_on_edge = self._targets_by_edge.get(edge) or []
+        other_targets_on_edge = self._targets_by_edge.get(upair(*edge)) or []
         if len(other_targets_on_edge) == 0:
             self.remove_edge(edge)
             self.add_edges([(edge[0], _id), (_id, edge[1])])
@@ -122,6 +121,10 @@ class ShieldedGraph(GraphS):
         dongle = self._in_dongle[_id]
         dongle.targets.remove(target)
 
+        left, right = self._local_info(_id)
+        self.remove_vertex(_id)
+        self.add_edge((left, right))
+
         del self._targets[_id]
         del self._in_dongle[_id]
         self._update_target_edge(target, edge=None)
@@ -133,23 +136,23 @@ class ShieldedGraph(GraphS):
     def _update_target_edge(self, target: DongleTarget, edge: Optional[ET]) -> None:
         _id = target.get_id()
         old_edge = self._on_edge.get(_id)
-        if old_edge == edge:
+        if old_edge is None and edge is None:
             return
 
         if edge is None:
-            self._targets_by_edge[old_edge].remove(_id)
+            self._targets_by_edge[upair(*old_edge)].remove(_id)
             del self._on_edge[_id]
         else:
             if old_edge is not None:
                 old_edge = self._on_edge[_id]
-                self._targets_by_edge[old_edge].remove(_id)
-            if not self._targets_by_edge.__contains__(edge):
-                self._targets_by_edge[edge] = []
-            self._targets_by_edge[edge].append(_id)
+                self._targets_by_edge[upair(*old_edge)].remove(_id)
+            if not self._targets_by_edge.__contains__(upair(*edge)):
+                self._targets_by_edge[upair(*edge)] = []
+            self._targets_by_edge[upair(*edge)].append(_id)
             self._on_edge[_id] = edge
 
     def merge_targets(self) -> None:
-        for dongle in self._in_dongle.values():
+        for dongle in set(self._in_dongle.values()):
             self.merge_targets_of_dongle(dongle)
 
     def merge_targets_of_dongle(self, dongle: Dongle) -> None:
@@ -210,13 +213,12 @@ class ShieldedGraph(GraphS):
     ###########################################################
 
     def realise_all_targets(self) -> None:
-        for edge, targets in self._targets_by_edge.items():
-            for _id in targets:
-                self.set_type(_id, VertexType.Z)
-                left, right = self._local_info(_id)
-                if self._targets[_id].get_type() == DongleTargetType.X:
-                    self.set_edge_type((left, _id), toggle_edge(self.edge_type((left, _id))))
-                    self.set_edge_type((_id, right), toggle_edge(self.edge_type((_id, right))))
+        for _id, target in self._targets.items():
+            self.set_type(_id, VertexType.Z)
+            left, right = self._local_info(_id)
+            if target.get_type() == DongleTargetType.X:
+                self.set_edge_type((left, _id), toggle_edge(self.edge_type((left, _id))))
+                self.set_edge_type((_id, right), toggle_edge(self.edge_type((_id, right))))
 
     def full_instance(self) -> None:
         self.reassign_dongle_positions()
@@ -281,7 +283,7 @@ class ShieldedGraph(GraphS):
             for e1, e2 in list(self.edges(gateway)):
                 other = e1 if gateway == e2 else e2
                 if other != co_gateway: # Skip the edge that the target is pushed from
-                    new_targets.append(self._add_target(_type, dongle=dongle, edge=(e1,e2)))
+                    new_targets.append(self.add_target(_type, dongle=dongle, edge=(e1, e2)))
             self._remove_target(target)
             return new_targets
 
@@ -303,10 +305,3 @@ class ShieldedGraph(GraphS):
             return [target]
         else:
             raise NotImplementedError(f"Gateway type {gateway_type.name} unhandled right now!")
-
-    def fire_web_onto_dongle(self, dongle: Dongle, web: PauliWeb) -> None:
-        for edge, pauli in web.half_edges().items():
-            if pauli == 'X' or pauli == 'Y':
-                self._add_target(DongleTargetType.X, dongle=dongle, edge=edge)
-            elif pauli == 'Z' or pauli == 'Y':
-                self._add_target(DongleTargetType.Z, dongle=dongle, edge=edge)

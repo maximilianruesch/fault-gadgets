@@ -36,7 +36,7 @@ class AdjPauliWeb:
         self.es: Dict[ET, Pauli] = dict()
 
     def copy(self) -> 'AdjPauliWeb':
-        pw = AdjPauliWeb(self.adj)
+        pw = AdjPauliWeb({ v: d.copy() for v, d in self.adj.items() })
         pw.es = self.es.copy()
         return pw
 

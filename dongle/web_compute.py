@@ -5,14 +5,15 @@ import numpy as np
 
 from pyzx import Mat2, VertexType, is_graph_like, to_gh, EdgeType
 from pyzx.editor_actions import match_hadamard_edge
+from pyzx.graph.graph_s import GraphS
 from pyzx.hsimplify import hadamard_simp
 from pyzx.linalg import Z2
 from pyzx.pauliweb import PauliWeb
 from pyzx.utils import toggle_vertex
-from . import ShieldedGraph, AdjPauliWeb
+from . import ShieldedGraph, AdjPauliWeb, Dongle, Pauli
 
 
-def _place_node_between(g: ShieldedGraph, _type: VertexType, n1: int, n2: int) -> int:
+def _place_node_between(g: GraphS, _type: VertexType, n1: int, n2: int) -> int:
     node = g.add_vertex(_type)
     n1_qubit, n1_row = g.qubit(n1), g.row(n1)
     n2_qubit, n2_row = g.qubit(n2), g.row(n2)
@@ -28,7 +29,7 @@ def _place_node_between(g: ShieldedGraph, _type: VertexType, n1: int, n2: int) -
 
     return node
 
-def _euler_expand_edges(g: ShieldedGraph) -> List[Tuple[int, int, int]]:
+def _euler_expand_edges(g: GraphS) -> List[Tuple[int, int, int]]:
     """
     A cut down version of pyzx.euler_expansion which does not add global scalars and does not prematurely 'merge' spiders
     """
@@ -45,18 +46,10 @@ def _euler_expand_edges(g: ShieldedGraph) -> List[Tuple[int, int, int]]:
 
     return expanded_edges
 
-def _to_red_green_graphlike(graph: ShieldedGraph, debug: Optional[Dict[str, Any]] = None) -> Tuple[ShieldedGraph, List[int], List[Tuple[int, int, int]]]:
-    g = graph.clone(ShieldedGraph())
-    g.full_instance()
-
-    # Convert all H-edges and H-boxes to red and green spiders
+def _to_red_green_graphlike(g: GraphS, debug: Optional[Dict[str, Any]] = None) -> Tuple[List[int], List[Tuple[int, int, int]]]:
+    # Convert all H-edges and Hadamards to red and green spiders
     hadamard_simp(g, quiet=True)
-    if debug is not None:
-        debug['g'] = g
     expanded_hadamards = _euler_expand_edges(g)
-
-    if debug is not None:
-        debug['g'] = g
 
     # Verify that diagram is clifford
     offending_vertices = []
@@ -86,9 +79,6 @@ def _to_red_green_graphlike(graph: ShieldedGraph, debug: Optional[Dict[str, Any]
         if g.type(s) == g.type(t):
             new_nodes.append(_place_node_between(g, toggle_vertex(g.type(s)), s, t))
 
-    for dongle in graph.dongles():
-        g.set_type(dongle.spawn, VertexType.BOUNDARY)
-
     # Ensure boundaries are not connected to a red spider
     boundaries = [v for v in g.vertices() if g.type(v) == VertexType.BOUNDARY]
     for boundary in boundaries:
@@ -114,9 +104,9 @@ def _to_red_green_graphlike(graph: ShieldedGraph, debug: Optional[Dict[str, Any]
         debug['gh'] = gc
         debug['graphlike'] = is_graph_like(gc, strict=True)
 
-    return g, new_nodes, expanded_hadamards
+    return new_nodes, expanded_hadamards
 
-def _determine_ordering(g: ShieldedGraph, debug: Optional[Dict[str, Any]] = None) -> Tuple[Dict[int, int], Dict[int, int], Dict[int, int], List[int], List[int]]:
+def _determine_ordering(g: GraphS, debug: Optional[Dict[str, Any]] = None) -> Tuple[Dict[int, int], Dict[int, int], Dict[int, int], List[int], List[int]]:
     boundaries = [v for v in g.vertices() if g.type(v) == VertexType.BOUNDARY]
     z_boundaries = {list(g.neighbors(b))[0]: b for b in boundaries}
     internal_spiders = list(g.vertex_set().difference(boundaries).difference(z_boundaries.keys()))
@@ -145,7 +135,7 @@ def _determine_ordering(g: ShieldedGraph, debug: Optional[Dict[str, Any]] = None
     return graph_to_ordering, ordering_to_graph, z_boundaries, internal_spiders, pi_2_spiders
 
 def _solve_firing_verification(
-        g: ShieldedGraph,
+        g: GraphS,
         graph_to_ordering: Dict[int, int],
         z_boundaries: Dict[int, int],
         internal_spiders: List[int],
@@ -175,19 +165,22 @@ def _solve_firing_verification(
 
     # Compute span of space of valid firing assignments
     sols = m_d.nullspace()
-    non_trivial_sols = list(filter(lambda _sol: sum(_sol[:2 * num_z_boundaries]) != 0, sols))
     if debug is not None:
         debug['sols'] = sols
-        debug['non_trivial_sols'] = non_trivial_sols
 
-    return non_trivial_sols
+    return sols
 
-def web_compute(graph: ShieldedGraph, debug: Optional[Dict[str, Any]] = None) -> List[PauliWeb]:
-    g, new_nodes, expanded_hadamards = _to_red_green_graphlike(graph, debug)
+def compute_webs(graph: GraphS, debug: Optional[Dict[str, Any]] = None) -> List[AdjPauliWeb]:
+    g = graph.clone(GraphS())
+
+    if debug is not None:
+        debug['g'] = g
+
+    new_nodes, expanded_hadamards = _to_red_green_graphlike(g, debug)
 
     graph_to_ordering, ordering_to_graph, z_boundaries, internal_spiders, pi_2_spiders = _determine_ordering(g, debug)
 
-    non_trivial_sols = _solve_firing_verification(g, graph_to_ordering, z_boundaries, internal_spiders, pi_2_spiders, debug)
+    sols = _solve_firing_verification(g, graph_to_ordering, z_boundaries, internal_spiders, pi_2_spiders, debug)
 
     def _convert_to_g_web(v: List[Z2]) -> PauliWeb:
         g_web = PauliWeb(g)
@@ -214,16 +207,35 @@ def web_compute(graph: ShieldedGraph, debug: Optional[Dict[str, Any]] = None) ->
 
         return g_web
 
-    g_webs = list(map(_convert_to_g_web, non_trivial_sols))
+    g_webs = list(map(_convert_to_g_web, sols))
     if debug is not None:
         debug['g_webs'] = g_webs
 
-    def _reduce(g_web: PauliWeb) -> PauliWeb:
+    def _reduce(g_web: PauliWeb) -> AdjPauliWeb:
         adj_web = AdjPauliWeb.from_regular_web(g_web)
         for n in new_nodes:
             adj_web.remove_id(n)
         for h in expanded_hadamards:
             adj_web.remove_hadamard(h)
-        return adj_web.to_regular_web(graph)
+        return adj_web
 
     return list(map(_reduce, g_webs))
+
+def compute_webs_for_dongle(graph: ShieldedGraph, dongle: Dongle, debug: Optional[Dict[str, Any]] = None) -> List[AdjPauliWeb]:
+    g = graph.clone(ShieldedGraph())
+    g.full_instance()
+
+    g.set_type(dongle.spawn, VertexType.BOUNDARY)
+
+    webs = compute_webs(g, debug)
+    relevant_webs = []
+    if debug is not None:
+        debug['relevant_g_webs'] = []
+    for i, web in enumerate(webs):
+        if web.half_edges().get((dongle.spawn, dongle.dist), Pauli.I) == Pauli.Z:
+            relevant_webs.append(web)
+
+            if debug is not None:
+                debug['relevant_g_webs'].append(debug['g_webs'][i])
+
+    return relevant_webs
