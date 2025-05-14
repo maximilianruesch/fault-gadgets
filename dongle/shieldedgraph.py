@@ -11,17 +11,19 @@ ET = Tuple[int, int]
 class ShieldedGraph(GraphS):
     def __init__(self) -> None:
         GraphS.__init__(self)
-        self._target_id_index = 0 # Counter which ID to assign to next target
-        self._targets: Dict[int, DongleTarget] = dict() # ID target ID -> Target
-        self._in_dongle: Dict[int, Dongle] = dict() # target ID -> Dongle of target
+        self._dongle_id_index = 0 # Counter which ID to assign to next dongle
+        self._targets: Dict[int, DongleTarget] = dict() # target ID (node) -> target
+        self._dongles: Dict[int, Dongle] = dict() # dongle ID -> dongle
+        self._in_dongle: Dict[int, int] = dict() # target ID -> dongle ID
         self._on_edge: Dict[int, ET] = dict() # target ID -> edge the target is on
         self._targets_by_edge: Dict[ET, List[int]] = dict() # edge -> target ID
 
     def clone(self, instance: Optional['ShieldedGraph'] = None) -> 'ShieldedGraph':
         cpy = GraphS.clone(self, instance)
-        cpy._target_id_index = self._target_id_index
+        cpy._dongle_id_index = self._dongle_id_index
         cpy._targets = { _id: target.copy() for _id, target in self._targets.items() }
-        cpy._in_dongle = { _id: dongle.copy() for _id, dongle in self._in_dongle.items() }
+        cpy._dongles = { _id: dongle.copy() for _id, dongle in self._dongles.items() }
+        cpy._in_dongle = self._in_dongle.copy()
         cpy._on_edge = self._on_edge.copy()
         cpy._targets_by_edge = { edge: targets.copy() for edge, targets in self._targets_by_edge.items() }
 
@@ -42,7 +44,7 @@ class ShieldedGraph(GraphS):
         :param _id: The target ID to fetch local info for
         :return: 'left' and 'right' adjacent nodes
         """
-        dist = self._in_dongle[_id].dist
+        dist = self._dongles[self._in_dongle[_id]].dist
         adjacent_nodes = [
             e1 if e2 == _id else e2
             for e1, e2, in self.edges(_id)
@@ -58,8 +60,8 @@ class ShieldedGraph(GraphS):
     #                        Dongles                          #
     ###########################################################
 
-    def dongles(self):
-        return set(self._in_dongle.values())
+    def dongles(self) -> Dict[int, Dongle]:
+        return self._dongles
 
     def add_all_dongles(self):
         if len(self._on_edge) != 0:
@@ -83,23 +85,28 @@ class ShieldedGraph(GraphS):
         spawn = self.add_vertex(VertexType.Z, qubit=-3)
         dist = self.add_vertex(VertexType.X, qubit=-2)
         self.add_edge((spawn, dist), edgetype=EdgeType.SIMPLE)
-        dongle = Dongle(self, spawn=spawn, dist=dist, targets=[])
+
+        _id = self._dongle_id_index
+        dongle = Dongle(_id, graph=self, spawn=spawn, dist=dist, targets=[])
+        self._dongles[_id] = dongle
+        self._dongle_id_index += 1
 
         for target_type in types:
             if target_type == 'X' or target_type == 'Y':
-                self.add_target(DongleTargetType.X, dongle=dongle, edge=edge)
+                self.add_target(DongleTargetType.X, dongle_id=_id, edge=edge)
             if target_type == 'Z' or target_type == 'Y':
-                self.add_target(DongleTargetType.Z, dongle=dongle, edge=edge)
+                self.add_target(DongleTargetType.Z, dongle_id=_id, edge=edge)
 
         return dongle
 
-    def add_target(self, _type: DongleTargetType, dongle: Dongle, edge: ET) -> DongleTarget:
+    def add_target(self, _type: DongleTargetType, dongle_id: int, edge: ET) -> DongleTarget:
         _id = self.add_vertex(VertexType.Z_BOX) # TODO choose a more appropriate node type
         _target = DongleTarget(_id=_id, _type=_type)
         self._targets[_id] = _target
 
+        dongle = self._dongles[dongle_id]
         dongle.targets.append(_target)
-        self._in_dongle[_id] = dongle
+        self._in_dongle[_id] = dongle_id
         self.add_edge((dongle.dist, _id))
 
         # Connect with neighbouring targets
@@ -118,8 +125,10 @@ class ShieldedGraph(GraphS):
 
     def _remove_target(self, target: DongleTarget) -> None:
         _id = target.get_id()
-        dongle = self._in_dongle[_id]
+        dongle = self._dongles[self._in_dongle[_id]]
         dongle.targets.remove(target)
+        if len(dongle.targets) == 0:
+            del self._dongles[dongle.get_id()]
 
         left, right = self._local_info(_id)
         self.remove_vertex(_id)
@@ -149,16 +158,16 @@ class ShieldedGraph(GraphS):
             if not self._targets_by_edge.__contains__(upair(*edge)):
                 self._targets_by_edge[upair(*edge)] = []
             self._targets_by_edge[upair(*edge)].append(_id)
-            self._on_edge[_id] = edge
+            self._on_edge[_id] = upair(*edge)
 
-    def merge_targets(self) -> None:
-        for dongle in set(self._in_dongle.values()):
-            self.merge_targets_of_dongle(dongle)
+    def merge_targets(self, quiet: bool = True) -> None:
+        for dongle_id in set(self._in_dongle.values()):
+            self.merge_targets_of_dongle(dongle_id, quiet=quiet)
 
-    def merge_targets_of_dongle(self, dongle: Dongle) -> None:
+    def merge_targets_of_dongle(self, dongle_id: int, quiet: bool = True) -> None:
         x_targets_by_edge: Dict[ET, List[DongleTarget]] = dict()
         z_targets_by_edge: Dict[ET, List[DongleTarget]] = dict()
-        for target in dongle.targets:
+        for target in self._dongles[dongle_id].targets:
             edge = self._on_edge[target.get_id()]
             if target.get_type() == DongleTargetType.X:
                 if not x_targets_by_edge.__contains__(edge):
@@ -170,15 +179,19 @@ class ShieldedGraph(GraphS):
                 z_targets_by_edge[edge].append(target)
 
         # All X targets from the same dongle on the same edge merge
-        for targets in x_targets_by_edge.values():
+        for edge, targets in x_targets_by_edge.items():
             if len(targets) % 2 == 1:
                 targets.pop()
+            if not quiet and len(targets) > 0:
+                print(f"Reducing {len(targets)} targets of type X from dongle #{dongle_id} on edge {edge}!")
             self._remove_targets(targets)
 
         # All Z targets from the same dongle on the same edge merge
-        for targets in z_targets_by_edge.values():
+        for edge, targets in z_targets_by_edge.items():
             if len(targets) % 2 == 1:
                 targets.pop()
+            if not quiet and len(targets) > 0:
+                print(f"Reducing {len(targets)} targets of type Z from dongle #{dongle_id} on edge {edge}!")
             self._remove_targets(targets)
 
     def reassign_dongle_positions(self):
@@ -202,7 +215,7 @@ class ShieldedGraph(GraphS):
                 raise ValueError("Underlying diagram is not on a grid!")
 
         # Adjust all distributors and spawn rows
-        for dongle in self._in_dongle.values():
+        for dongle in self._dongles.values():
             rows = [self.row(target.get_id()) for target in dongle.targets]
             avg_row = sum(rows) / len(dongle.targets)
             self.set_row(dongle.dist, avg_row)
@@ -225,83 +238,3 @@ class ShieldedGraph(GraphS):
         self.realise_all_targets()
         self.pack_circuit_rows()
         self.auto_detect_io()
-
-    ###########################################################
-    #                       Pushing                           #
-    ###########################################################
-
-    def push_target(self, target: DongleTarget, new_edge: ET) -> Iterable[DongleTarget]:
-        """
-        Push the target to the next edge which must be adjacent.
-        May have side effects on the target / introduce new targets / remove target.
-        """
-        if self.edge_type(new_edge) == EdgeType.HADAMARD:
-            raise ValueError("Hadamard edges cannot be pushed onto!")
-
-        _id = target.get_id()
-        old_edge = self._on_edge[_id]
-        common_nodes = set(old_edge).intersection(new_edge)
-        if len(common_nodes) == 2:
-            raise ValueError(f"Given target is already on the edge: {new_edge}!")
-        elif len(common_nodes) == 0:
-            raise ValueError(f"Given edge {new_edge} is not adjacent to dongle target edge {old_edge}!")
-
-        gateway = common_nodes.pop()
-        co_gateway = set(old_edge).difference(common_nodes).pop()
-        gateway_type = self.type(gateway)
-
-        def _teleport() -> Tuple[int, int]:
-            left, right = self._local_info(_id)
-            other_target = None
-            for e1, e2 in self.edges(gateway):
-                if e1 == gateway and self._on_edge.__contains__(e2) and self._on_edge[e2] == old_edge:
-                    other_target = e2
-                elif e2 == gateway and self._on_edge.__contains__(e1) and self._on_edge[e1] == old_edge:
-                    other_target = e1
-
-            if other_target is None:
-                raise RuntimeError(f"Cannot find next target on edge {old_edge} where one is supposed to be!")
-            elif other_target == _id:
-                # Nothing to do, already adjacent to gateway!
-                return (left, right) if left == gateway else (right, left)
-
-            self.remove_edges([(gateway, other_target), (left, _id), (right, _id)])
-            self.add_edges([(left, right), (gateway, _id), (other_target, _id)])
-
-            return gateway, other_target
-
-        def _phase_through() -> None:
-            _s, _t = _teleport()
-            self.remove_edges([new_edge, (_s, _id), (_t, _id)])
-            self.add_edges([(_s, _t), (new_edge[1], _id), (new_edge[0], _id)])
-            self._update_target_edge(target, new_edge)
-
-        def _multiply_through(_type: DongleTargetType) -> Iterable[DongleTarget]:
-            _s, _t = _teleport()
-            dongle = self._in_dongle[_id]
-            new_targets = []
-            for e1, e2 in list(self.edges(gateway)):
-                other = e1 if gateway == e2 else e2
-                if other != co_gateway: # Skip the edge that the target is pushed from
-                    new_targets.append(self.add_target(_type, dongle=dongle, edge=(e1, e2)))
-            self._remove_target(target)
-            return new_targets
-
-        if gateway_type == VertexType.Z:
-            if target.get_type() == DongleTargetType.Z:
-                _phase_through()
-                return [target]
-            else:
-                return _multiply_through(DongleTargetType.X)
-        elif gateway_type == VertexType.X:
-            if target.get_type() == DongleTargetType.X:
-                _phase_through()
-                return [target]
-            else:
-                return _multiply_through(DongleTargetType.Z)
-        elif gateway_type == VertexType.H_BOX:
-            _phase_through()
-            target.set_type(target.get_type().flip())
-            return [target]
-        else:
-            raise NotImplementedError(f"Gateway type {gateway_type.name} unhandled right now!")

@@ -36,24 +36,42 @@ class DongleTarget:
     def __str__(self) -> str:
         return f"DongleTarget({self._id}, {self._type})"
 
+    def __eq__(self, other: 'DongleTarget'):
+        return self._id == other._id and self._type == other._type
+
+    def __hash__(self):
+        return hash((self._id, self._type))
+
 class Dongle:
+    _id: int
     graph: GraphS
     spawn: int
     dist: int
     targets: List[DongleTarget]
 
-    def copy(self) -> 'Dongle':
-        return Dongle(self.graph, self.spawn, self.dist, [t.copy() for t in self.targets])
-
-    def __init__(self, graph: GraphS,
+    def __init__(self, _id: int, graph: GraphS,
                  spawn: int, dist: int, targets: List[DongleTarget]):
+        self._id = _id
         self.graph = graph
         self.spawn = spawn
         self.dist = dist
         self.targets = targets
 
+    def copy(self) -> 'Dongle':
+        return Dongle(self._id, self.graph, self.spawn, self.dist, [t.copy() for t in self.targets])
+
+    def get_id(self) -> int:
+        return self._id
+
     def __repr__(self):
         return self.__str__()
 
     def __str__(self) -> str:
-        return f"Dongle({self.graph}, {self.spawn}, {self.dist}, {self.targets})"
+        return f"Dongle#{self._id}({self.graph}, {self.spawn}, {self.dist}, {self.targets})"
+
+    def __eq__(self, other: 'Dongle'):
+        return self._id == other._id and self.graph == other.graph and self.spawn == other.spawn\
+            and self.dist == other.dist and self.targets == other.targets
+
+    def __hash__(self):
+        return hash(f"Dongle#{self._id}")

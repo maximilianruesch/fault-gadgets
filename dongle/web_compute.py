@@ -10,7 +10,7 @@ from pyzx.hsimplify import hadamard_simp
 from pyzx.linalg import Z2
 from pyzx.pauliweb import PauliWeb
 from pyzx.utils import toggle_vertex
-from . import ShieldedGraph, AdjPauliWeb, Dongle, Pauli
+from . import ShieldedGraph, AdjPauliWeb, Pauli
 
 
 def _place_node_between(g: GraphS, _type: VertexType, n1: int, n2: int) -> int:
@@ -221,10 +221,11 @@ def compute_webs(graph: GraphS, debug: Optional[Dict[str, Any]] = None) -> List[
 
     return list(map(_reduce, g_webs))
 
-def compute_webs_for_dongle(graph: ShieldedGraph, dongle: Dongle, debug: Optional[Dict[str, Any]] = None) -> List[AdjPauliWeb]:
+def compute_webs_for_dongle(graph: ShieldedGraph, dongle_id: int, debug: Optional[Dict[str, Any]] = None) -> List[AdjPauliWeb]:
     g = graph.clone(ShieldedGraph())
     g.full_instance()
 
+    dongle = g.dongles()[dongle_id]
     g.set_type(dongle.spawn, VertexType.BOUNDARY)
 
     webs = compute_webs(g, debug)
