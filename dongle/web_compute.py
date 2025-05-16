@@ -10,7 +10,7 @@ from pyzx.graph.graph_s import GraphS
 from pyzx.hsimplify import hadamard_simp
 from pyzx.linalg import Z2
 from pyzx.pauliweb import PauliWeb
-from . import ShieldedGraph, AdjPauliWeb, Pauli
+from . import DongleGraph, AdjPauliWeb, Pauli
 
 @dataclass(init=True, repr=False, eq=False, frozen=True)
 class GraphOrdering:
@@ -117,7 +117,7 @@ def _to_red_green_graphlike(g: GraphS, debug: Optional[Dict[str, Any]] = None) -
         debug['g'] = g
         debug['new_nodes'] = new_nodes
         debug['boundaries'] = boundaries
-        gc = g.clone(ShieldedGraph())
+        gc = g.clone(DongleGraph())
         to_gh(gc)
         debug['gh'] = gc
         debug['graphlike'] = is_graph_like(gc, strict=True)
@@ -233,13 +233,13 @@ def compute_webs(graph: GraphS, debug: Optional[Dict[str, Any]] = None) -> List[
 
     return list(map(lambda web: _reduce_g_web_to_original_web(new_nodes, expanded_hadamards, web), g_webs))
 
-def compute_web_for_dongle(graph: ShieldedGraph, dongle_id: int, debug: Optional[Dict[str, Any]] = None) -> AdjPauliWeb:
+def compute_web_for_dongle(graph: DongleGraph, dongle_id: int, debug: Optional[Dict[str, Any]] = None) -> AdjPauliWeb:
     """
     Computes a Pauli web for the given dongle in the graph context.
     A valid web for the dongle is one that features a Z-type edge between the dongles spawn and distributor.
     """
 
-    g = graph.clone(ShieldedGraph())
+    g = graph.clone(DongleGraph())
     g.full_instance()
 
     dongle = g.dongles()[dongle_id]

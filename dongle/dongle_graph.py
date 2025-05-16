@@ -8,7 +8,7 @@ from pyzx.graph.graph_s import GraphS
 
 ET = Tuple[int, int]
 
-class ShieldedGraph(GraphS):
+class DongleGraph(GraphS):
     def __init__(self) -> None:
         GraphS.__init__(self)
         self._dongle_id_index = 0 # Counter which ID to assign to next dongle
@@ -18,7 +18,7 @@ class ShieldedGraph(GraphS):
         self._on_edge: Dict[int, ET] = dict() # target ID -> edge the target is on
         self._targets_by_edge: Dict[ET, List[int]] = dict() # edge -> target ID
 
-    def clone(self, instance: Optional['ShieldedGraph'] = None) -> 'ShieldedGraph':
+    def clone(self, instance: Optional['DongleGraph'] = None) -> 'DongleGraph':
         cpy = GraphS.clone(self, instance)
         cpy._dongle_id_index = self._dongle_id_index
         cpy._targets = { _id: target.copy() for _id, target in self._targets.items() }
@@ -30,12 +30,12 @@ class ShieldedGraph(GraphS):
         return cpy
 
     @staticmethod
-    def from_graph(graph: GraphS) -> 'ShieldedGraph':
+    def from_graph(graph: GraphS) -> 'DongleGraph':
         """
         Assumes that the given graph has no dongle information attached.
         If a graph with dongles needs to be copied, use `clone` instead.
         """
-        return graph.clone(ShieldedGraph())
+        return graph.clone(DongleGraph())
 
     def _local_info(self, _id: int) -> Tuple[int, int]:
         """

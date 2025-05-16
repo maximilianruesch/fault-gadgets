@@ -1,7 +1,7 @@
 from enum import StrEnum
 from typing import Dict, Tuple, List
 
-from dongle.shieldedgraph import ET
+from dongle.dongle_graph import ET
 from pyzx.graph.graph_s import GraphS
 from pyzx.pauliweb import PauliWeb
 

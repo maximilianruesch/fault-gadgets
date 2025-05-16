@@ -1,8 +1,8 @@
 import pyzx as zx
-from dongle import ShieldedGraph
+from dongle import DongleGraph
 
 if __name__ == '__main__':
-    g = ShieldedGraph()
+    g = DongleGraph()
     g_b1 = g.add_vertex(zx.VertexType.BOUNDARY, qubit=0, row=0)
     g_b2 = g.add_vertex(zx.VertexType.BOUNDARY, qubit=1, row=0)
     g_b3 = g.add_vertex(zx.VertexType.BOUNDARY, qubit=0, row=3)
