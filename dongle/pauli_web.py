@@ -26,6 +26,13 @@ class Pauli(StrEnum):
         elif self == Pauli.Z: return Pauli.X
         else: return self
 
+    @staticmethod
+    def from_binary(z_flip: bool, x_flip: bool) -> 'Pauli':
+        if z_flip:
+            return Pauli.Y if x_flip else Pauli.Z
+        else:
+            return Pauli.X if x_flip else Pauli.I
+
 class AdjPauliWeb:
     """
     A curated version of pyzx.pauliweb.PauliWeb with additional helper functions to modify the

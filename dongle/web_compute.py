@@ -10,7 +10,6 @@ from pyzx.graph.graph_s import GraphS
 from pyzx.hsimplify import hadamard_simp
 from pyzx.linalg import Z2
 from pyzx.pauliweb import PauliWeb
-from pyzx.utils import toggle_vertex
 from . import ShieldedGraph, AdjPauliWeb, Pauli
 
 @dataclass(init=True, repr=False, eq=False, frozen=True)
@@ -92,7 +91,11 @@ def _to_red_green_graphlike(g: GraphS, debug: Optional[Dict[str, Any]] = None) -
     new_nodes = []
     for s, t in list(g.edges()):
         if g.type(s) == g.type(t):
-            new_nodes.append(_place_node_between(g, toggle_vertex(g.type(s)), s, t))
+            if g.type(s) == VertexType.BOUNDARY or g.type(s) == VertexType.Z:
+                new_type = VertexType.X
+            else:
+                new_type = VertexType.Z
+            new_nodes.append(_place_node_between(g, new_type, s, t))
 
     # Ensure boundaries are not connected to a red spider
     boundaries = [v for v in g.vertices() if g.type(v) == VertexType.BOUNDARY]
@@ -166,7 +169,7 @@ def _create_firing_verification(g: GraphS, ordering: GraphOrdering, debug: Optio
     m_d[:, num_z_boundaries:] = adj_matrix
     num_pi_2 = len(ordering.pi_2_spiders)
     slice_key = (slice(m_d.rows() - num_pi_2, m_d.rows()), slice(m_d.cols() - num_pi_2, m_d.cols()))
-    m_d[slice_key] = Mat2((np.array(m_d[slice_key].data) - np.array(Mat2.id(num_pi_2).data)).tolist())
+    m_d[slice_key] = Mat2((np.array(m_d[slice_key].data, dtype=bool) ^ np.array(Mat2.id(num_pi_2).data, dtype=bool)).tolist())
 
     if debug is not None:
         debug['M_D'] = m_d
@@ -198,6 +201,18 @@ def _convert_firing_assignment_to_g_web(g: GraphS, ordering: GraphOrdering, v: L
 
     return g_web
 
+def _reduce_g_web_to_original_web(
+        new_nodes: List[int],
+        expanded_hadamards: List[Tuple[int, int, int]],
+        g_web: PauliWeb
+) -> AdjPauliWeb:
+    adj_web = AdjPauliWeb.from_regular_web(g_web)
+    for n in new_nodes:
+        adj_web.remove_id(n)
+    for h in expanded_hadamards:
+        adj_web.remove_hadamard(h)
+    return adj_web
+
 def compute_webs(graph: GraphS, debug: Optional[Dict[str, Any]] = None) -> List[AdjPauliWeb]:
     g = graph.clone(GraphS())
     if debug is not None:
@@ -216,15 +231,7 @@ def compute_webs(graph: GraphS, debug: Optional[Dict[str, Any]] = None) -> List[
     if debug is not None:
         debug['g_webs'] = g_webs
 
-    def _reduce(g_web: PauliWeb) -> AdjPauliWeb:
-        adj_web = AdjPauliWeb.from_regular_web(g_web)
-        for n in new_nodes:
-            adj_web.remove_id(n)
-        for h in expanded_hadamards:
-            adj_web.remove_hadamard(h)
-        return adj_web
-
-    return list(map(_reduce, g_webs))
+    return list(map(lambda web: _reduce_g_web_to_original_web(new_nodes, expanded_hadamards, web), g_webs))
 
 def compute_web_for_dongle(graph: ShieldedGraph, dongle_id: int, debug: Optional[Dict[str, Any]] = None) -> AdjPauliWeb:
     """
@@ -238,20 +245,44 @@ def compute_web_for_dongle(graph: ShieldedGraph, dongle_id: int, debug: Optional
     dongle = g.dongles()[dongle_id]
     g.set_type(dongle.spawn, VertexType.BOUNDARY)
 
-    webs = compute_webs(g, debug)
-    web_types = [web.half_edges().get((dongle.spawn, dongle.dist), Pauli.I) for web in webs]
+    # Computing webs
+    new_nodes, expanded_hadamards = _to_red_green_graphlike(g, debug)
+    ordering = _determine_ordering(g, debug)
+    m_d = _create_firing_verification(g, ordering, debug)
+    sols = m_d.nullspace()
+
+    spawn_z_boundary_index = ordering.ord(list(g.neighbors(dongle.spawn))[0])
+    sol_types = [
+        Pauli.from_binary(
+            z_flip=sol[spawn_z_boundary_index],
+            x_flip=sol[spawn_z_boundary_index + len(ordering.z_boundaries)]
+        ) for sol in sols
+    ]
 
     # Fitting web is given directly, note that it might not be minimal in weight overall
-    if Pauli.Z in web_types:
-        z_webs = [web for i, web in enumerate(webs) if web_types[i] == Pauli.Z]
+    if Pauli.Z in sol_types:
+        z_sols = [web for i, web in enumerate(sols) if sol_types[i] == Pauli.Z]
+        z_g_webs = map(lambda v: _convert_firing_assignment_to_g_web(g, ordering, v), z_sols)
+        z_webs = map(lambda web: _reduce_g_web_to_original_web(new_nodes, expanded_hadamards, web), z_g_webs)
         min_web = min(z_webs, key=lambda web: sum([1 if pauli != 'I' else 0 for pauli in web.half_edges().values()]))
 
         return min_web
 
     # Compute fitting web by complementing a Y web with an X web to yield a Z web
-    if Pauli.X in web_types and Pauli.Y in web_types:
-        x_web = webs[web_types.index(Pauli.X)]
-        y_web = webs[web_types.index(Pauli.Y)]
+    if Pauli.X in sol_types and Pauli.Y in sol_types:
+        x_sol = sols[sol_types.index(Pauli.X)]
+        y_sol = sols[sol_types.index(Pauli.Y)]
+
+        x_web = _reduce_g_web_to_original_web(
+            new_nodes,
+            expanded_hadamards,
+            _convert_firing_assignment_to_g_web(g, ordering, x_sol)
+        )
+        y_web = _reduce_g_web_to_original_web(
+            new_nodes,
+            expanded_hadamards,
+            _convert_firing_assignment_to_g_web(g, ordering, y_sol)
+        )
 
         return x_web * y_web
 
