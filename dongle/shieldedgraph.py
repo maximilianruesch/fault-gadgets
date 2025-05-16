@@ -67,8 +67,9 @@ class ShieldedGraph(GraphS):
         if len(self._on_edge) != 0:
             raise ValueError(f"The graph already has some dongles!")
 
-        for edge in list(self.edges()):
-            self.add_dongles(edge)
+        for e1, e2 in list(self.edges()):
+            if self.type(e1) is not VertexType.BOUNDARY and self.type(e2) is not VertexType.BOUNDARY:
+                self.add_dongles((e1, e2))
 
     def add_dongles(self, edge: ET) -> Tuple[Dongle, Dongle, Dongle]:
         edge_type = self.edge_type(edge)
