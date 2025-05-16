@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from fractions import Fraction
 from typing import Dict, Optional, Any, List, Tuple
 
@@ -12,6 +13,20 @@ from pyzx.pauliweb import PauliWeb
 from pyzx.utils import toggle_vertex
 from . import ShieldedGraph, AdjPauliWeb, Pauli
 
+@dataclass(init=True, repr=False, eq=False, frozen=True)
+class GraphOrdering:
+    graph_to_ordering: Dict[int, int]
+    ordering_to_graph: Dict[int, int]
+
+    z_boundaries: Dict[int, int]
+    internal_spiders: List[int]
+    pi_2_spiders: List[int]
+
+    def ord(self, s: int) -> int:
+        return self.graph_to_ordering[s]
+
+    def graph(self, o: int) -> int:
+        return self.ordering_to_graph[o]
 
 def _place_node_between(g: GraphS, _type: VertexType, n1: int, n2: int) -> int:
     node = g.add_vertex(_type)
@@ -106,7 +121,7 @@ def _to_red_green_graphlike(g: GraphS, debug: Optional[Dict[str, Any]] = None) -
 
     return new_nodes, expanded_hadamards
 
-def _determine_ordering(g: GraphS, debug: Optional[Dict[str, Any]] = None) -> Tuple[Dict[int, int], Dict[int, int], Dict[int, int], List[int], List[int]]:
+def _determine_ordering(g: GraphS, debug: Optional[Dict[str, Any]] = None) -> GraphOrdering:
     boundaries = [v for v in g.vertices() if g.type(v) == VertexType.BOUNDARY]
     z_boundaries = {list(g.neighbors(b))[0]: b for b in boundaries}
     internal_spiders = list(g.vertex_set().difference(boundaries).difference(z_boundaries.keys()))
@@ -132,23 +147,16 @@ def _determine_ordering(g: GraphS, debug: Optional[Dict[str, Any]] = None) -> Tu
         ordering_to_graph[idx] = pi_2_spider
         idx += 1
         
-    return graph_to_ordering, ordering_to_graph, z_boundaries, internal_spiders, pi_2_spiders
+    return GraphOrdering(graph_to_ordering, ordering_to_graph, z_boundaries, internal_spiders, pi_2_spiders)
 
-def _solve_firing_verification(
-        g: GraphS,
-        graph_to_ordering: Dict[int, int],
-        z_boundaries: Dict[int, int],
-        internal_spiders: List[int],
-        pi_2_spiders: List[int],
-        debug: Optional[Dict[str, Any]] = None
-) -> List[List[int]]:
-    num_z_boundaries = len(z_boundaries)
-    num_non_boundary_spiders = num_z_boundaries + len(internal_spiders)
+def _create_firing_verification(g: GraphS, ordering: GraphOrdering, debug: Optional[Dict[str, Any]] = None) -> Mat2:
+    num_z_boundaries = len(ordering.z_boundaries)
+    num_non_boundary_spiders = num_z_boundaries + len(ordering.internal_spiders)
     adj_matrix = Mat2.zeros(num_non_boundary_spiders, num_non_boundary_spiders)
     for s in g.graph:
         for t in g.graph[s]:
             if g.type(s) != VertexType.BOUNDARY and g.type(t) != VertexType.BOUNDARY:
-                adj_matrix[graph_to_ordering[s], graph_to_ordering[t]] += 1
+                adj_matrix[ordering.ord(s), ordering.ord(t)] += 1
 
     if debug is not None:
         debug['adj_matrix'] = adj_matrix
@@ -156,58 +164,55 @@ def _solve_firing_verification(
     m_d = Mat2.zeros(adj_matrix.rows(), adj_matrix.cols() + num_z_boundaries)
     m_d[0:num_z_boundaries, 0:num_z_boundaries] = Mat2.id(num_z_boundaries)
     m_d[:, num_z_boundaries:] = adj_matrix
-    num_pi_2 = len(pi_2_spiders)
+    num_pi_2 = len(ordering.pi_2_spiders)
     slice_key = (slice(m_d.rows() - num_pi_2, m_d.rows()), slice(m_d.cols() - num_pi_2, m_d.cols()))
     m_d[slice_key] = Mat2((np.array(m_d[slice_key].data) - np.array(Mat2.id(num_pi_2).data)).tolist())
 
     if debug is not None:
         debug['M_D'] = m_d
 
+    return m_d
+
+def _convert_firing_assignment_to_g_web(g: GraphS, ordering: GraphOrdering, v: List[Z2]) -> PauliWeb:
+    g_web = PauliWeb(g)
+
+    # Fire all green spiders with full red edges and thus their red neighbours
+    for adj_vertex, g_vertex in ordering.ordering_to_graph.items():
+        g_type = g.type(g_vertex)
+        if g_type == VertexType.Z and v[adj_vertex + len(ordering.z_boundaries)] == 1:
+            for _n in g.neighbors(g_vertex):
+                g_web.add_edge((g_vertex, _n), 'X')
+
+    # Fire all red spiders with full green edges and thus their green neighbours
+    for adj_vertex, g_vertex in ordering.ordering_to_graph.items():
+        g_type = g.type(g_vertex)
+        if g_type == VertexType.X and v[adj_vertex + len(ordering.z_boundaries)] == 1:
+            for _n in g.neighbors(g_vertex):
+                g_web.add_edge((g_vertex, _n), 'Z')
+
+    # Fire all green output edges
+    for g_z_boundary, g_boundary in ordering.z_boundaries.items():
+        adj_z_boundary = ordering.ord(g_z_boundary)
+        if v[adj_z_boundary] == 1:
+            g_web.add_edge((g_z_boundary, g_boundary), 'Z')
+
+    return g_web
+
+def compute_webs(graph: GraphS, debug: Optional[Dict[str, Any]] = None) -> List[AdjPauliWeb]:
+    g = graph.clone(GraphS())
+    if debug is not None:
+        debug['g'] = g
+
+    new_nodes, expanded_hadamards = _to_red_green_graphlike(g, debug)
+    ordering = _determine_ordering(g, debug)
+    m_d = _create_firing_verification(g, ordering, debug)
+
     # Compute span of space of valid firing assignments
     sols = m_d.nullspace()
     if debug is not None:
         debug['sols'] = sols
 
-    return sols
-
-def compute_webs(graph: GraphS, debug: Optional[Dict[str, Any]] = None) -> List[AdjPauliWeb]:
-    g = graph.clone(GraphS())
-
-    if debug is not None:
-        debug['g'] = g
-
-    new_nodes, expanded_hadamards = _to_red_green_graphlike(g, debug)
-
-    graph_to_ordering, ordering_to_graph, z_boundaries, internal_spiders, pi_2_spiders = _determine_ordering(g, debug)
-
-    sols = _solve_firing_verification(g, graph_to_ordering, z_boundaries, internal_spiders, pi_2_spiders, debug)
-
-    def _convert_to_g_web(v: List[Z2]) -> PauliWeb:
-        g_web = PauliWeb(g)
-
-        # Fire all green spiders with full red edges and thus their red neighbours
-        for adj_vertex, g_vertex in ordering_to_graph.items():
-            g_type = g.type(g_vertex)
-            if g_type == VertexType.Z and v[adj_vertex + len(z_boundaries)] == 1:
-                for _n in g.neighbors(g_vertex):
-                    g_web.add_edge((g_vertex, _n), 'X')
-
-        # Fire all red spiders with full green edges and thus their green neighbours
-        for adj_vertex, g_vertex in ordering_to_graph.items():
-            g_type = g.type(g_vertex)
-            if g_type == VertexType.X and v[adj_vertex + len(z_boundaries)] == 1:
-                for _n in g.neighbors(g_vertex):
-                    g_web.add_edge((g_vertex, _n), 'Z')
-
-        # Fire all green output edges
-        for g_z_boundary, g_boundary in z_boundaries.items():
-            adj_z_boundary = graph_to_ordering[g_z_boundary]
-            if v[adj_z_boundary] == 1:
-                g_web.add_edge((g_z_boundary, g_boundary), 'Z')
-
-        return g_web
-
-    g_webs = list(map(_convert_to_g_web, sols))
+    g_webs = list(map(lambda v: _convert_firing_assignment_to_g_web(g, ordering, v), sols))
     if debug is not None:
         debug['g_webs'] = g_webs
 
@@ -221,7 +226,12 @@ def compute_webs(graph: GraphS, debug: Optional[Dict[str, Any]] = None) -> List[
 
     return list(map(_reduce, g_webs))
 
-def compute_webs_for_dongle(graph: ShieldedGraph, dongle_id: int, debug: Optional[Dict[str, Any]] = None) -> List[AdjPauliWeb]:
+def compute_web_for_dongle(graph: ShieldedGraph, dongle_id: int, debug: Optional[Dict[str, Any]] = None) -> AdjPauliWeb:
+    """
+    Computes a Pauli web for the given dongle in the graph context.
+    A valid web for the dongle is one that features a Z-type edge between the dongles spawn and distributor.
+    """
+
     g = graph.clone(ShieldedGraph())
     g.full_instance()
 
@@ -229,14 +239,20 @@ def compute_webs_for_dongle(graph: ShieldedGraph, dongle_id: int, debug: Optiona
     g.set_type(dongle.spawn, VertexType.BOUNDARY)
 
     webs = compute_webs(g, debug)
-    relevant_webs = []
-    if debug is not None:
-        debug['relevant_g_webs'] = []
-    for i, web in enumerate(webs):
-        if web.half_edges().get((dongle.spawn, dongle.dist), Pauli.I) == Pauli.Z:
-            relevant_webs.append(web)
+    web_types = [web.half_edges().get((dongle.spawn, dongle.dist), Pauli.I) for web in webs]
 
-            if debug is not None:
-                debug['relevant_g_webs'].append(debug['g_webs'][i])
+    # Fitting web is given directly, note that it might not be minimal in weight overall
+    if Pauli.Z in web_types:
+        z_webs = [web for i, web in enumerate(webs) if web_types[i] == Pauli.Z]
+        min_web = min(z_webs, key=lambda web: sum([1 if pauli != 'I' else 0 for pauli in web.half_edges().values()]))
 
-    return relevant_webs
+        return min_web
+
+    # Compute fitting web by complementing a Y web with an X web to yield a Z web
+    if Pauli.X in web_types and Pauli.Y in web_types:
+        x_web = webs[web_types.index(Pauli.X)]
+        y_web = webs[web_types.index(Pauli.Y)]
+
+        return x_web * y_web
+
+    raise AssertionError(f"No fitting webs found for dongle {dongle}!")

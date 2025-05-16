@@ -69,6 +69,7 @@ class AdjPauliWeb:
         ]
         if sequence != ['Z', 'Z', 'Z', 'Z', 'Y', 'Y', 'X', 'X'] \
                 and sequence != ['X', 'X', 'Y', 'Y', 'Z', 'Z', 'Z', 'Z'] \
+                and sequence != ['Y', 'Y', 'X', 'X', 'X', 'X', 'Y', 'Y'] \
                 and sequence != ['I', 'I', 'I', 'I', 'I', 'I', 'I', 'I']:
             raise AssertionError(f"Invalid configuration of H-nodes {str((w1, w2, w3))} half edges: {sequence}!")
 
@@ -105,6 +106,12 @@ class AdjPauliWeb:
 
     def __repr__(self):
         return 'PauliWeb' + str(self.vertices())
+
+    def __mul__(self, other: 'AdjPauliWeb'):
+        pw = self.copy()
+        for e,p in other.es.items():
+            pw.add_half_edge(e, p)
+        return pw
 
     @staticmethod
     def from_regular_web(web: PauliWeb) -> 'AdjPauliWeb':

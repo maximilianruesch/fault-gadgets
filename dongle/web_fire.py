@@ -1,4 +1,4 @@
-from dongle import ShieldedGraph, AdjPauliWeb, DongleTargetType, compute_webs_for_dongle
+from dongle import ShieldedGraph, AdjPauliWeb, DongleTargetType, compute_web_for_dongle
 from pyzx import VertexType
 
 
@@ -34,10 +34,7 @@ def fire_web_onto_dongle(g: ShieldedGraph, dongle_id: int, web: AdjPauliWeb, qui
 
 def expand_all_dongles(g: ShieldedGraph, quiet: bool = True) -> None:
     for dongle_id, dongle in g.dongles().items():
-        webs = compute_webs_for_dongle(g, dongle_id)
-        if len(webs) == 0:
-            raise AssertionError(f"No webs found for dongle {dongle}!")
-
-        min_web = min(webs, key=lambda web: sum([1 if pauli != 'I' else 0 for pauli in web.half_edges().values() ]))
-        fire_web_onto_dongle(g, dongle_id, min_web, quiet=quiet)
+        web = compute_web_for_dongle(g, dongle_id)
+        fire_web_onto_dongle(g, dongle_id, web, quiet=quiet)
         g.merge_targets(quiet=quiet)
+        g.reassign_dongle_positions()
