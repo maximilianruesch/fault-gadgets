@@ -179,7 +179,7 @@ class DongleGraph(GraphS):
                     z_targets_by_edge[edge] = []
                 z_targets_by_edge[edge].append(target)
 
-        # All X targets from the same dongle on the same edge merge
+        # All pauliboxs from the same dongle on the same edge merge
         for edge, targets in x_targets_by_edge.items():
             if len(targets) % 2 == 1:
                 targets.pop()
