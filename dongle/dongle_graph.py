@@ -198,20 +198,20 @@ class DongleGraph(GraphS):
 
     def reassign_dongle_positions(self):
         # Adjust all target positions
-        for edge, targets in self._targets_by_edge.items():
+        for edge, target_ids in self._targets_by_edge.items():
             s,t = edge
             s_qubit, s_row = self.qubit(s), self.row(s)
             t_qubit, t_row = self.qubit(t), self.row(t)
 
             if s_qubit == t_qubit:  # Horizontal
-                for idx, _id in enumerate(targets):
+                for idx, _id in enumerate(target_ids):
                     self.set_qubit(_id, s_qubit)
                     self.set_row(_id,
-                                 s_row + (t_row - s_row) * ((float(idx) + 1) / (len(targets) + 1)))
+                                 s_row + (t_row - s_row) * ((float(idx) + 1) / (len(target_ids) + 1)))
             elif s_row == t_row:  # Vertical
-                for idx, _id in enumerate(targets):
+                for idx, _id in enumerate(target_ids):
                     self.set_qubit(_id,
-                                   s_qubit + (t_qubit - s_qubit) * ((float(idx) + 1) / (len(targets) + 1)))
+                                   s_qubit + (t_qubit - s_qubit) * ((float(idx) + 1) / (len(target_ids) + 1)))
                     self.set_row(_id, s_row)
 
         # Adjust all distributors and spawn rows
