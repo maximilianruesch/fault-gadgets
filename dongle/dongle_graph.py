@@ -126,18 +126,19 @@ class DongleGraph(GraphS):
 
     def _remove_target(self, target: DongleTarget) -> None:
         _id = target.get_id()
-        dongle = self._dongles[self._in_dongle[_id]]
-        dongle.targets.remove(target)
-        if len(dongle.targets) == 0:
-            del self._dongles[dongle.get_id()]
 
         left, right = self._local_info(_id)
         self.remove_vertex(_id)
         self.add_edge((left, right))
+        self._update_target_edge(target, edge=None)
+
+        dongle = self._dongles[self._in_dongle[_id]]
+        dongle.targets.remove(target)
+        del self._in_dongle[_id]
+        if len(dongle.targets) == 0:
+            del self._dongles[dongle.get_id()]
 
         del self._targets[_id]
-        del self._in_dongle[_id]
-        self._update_target_edge(target, edge=None)
 
     def _remove_targets(self, targets: Iterable[DongleTarget]) -> None:
         for target in targets:
@@ -212,8 +213,6 @@ class DongleGraph(GraphS):
                     self.set_qubit(_id,
                                    s_qubit + (t_qubit - s_qubit) * ((float(idx) + 1) / (len(targets) + 1)))
                     self.set_row(_id, s_row)
-            else:
-                raise ValueError("Underlying diagram is not on a grid!")
 
         # Adjust all distributors and spawn rows
         for dongle in self._dongles.values():
