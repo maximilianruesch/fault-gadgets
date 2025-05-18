@@ -42,6 +42,9 @@ class AdjPauliWeb:
         self.adj = adj
         self.es: Dict[ET, Pauli] = dict()
 
+    def __getitem__(self, key: ET) -> Pauli:
+        return self.es.get(key, Pauli.I)
+
     def copy(self) -> 'AdjPauliWeb':
         pw = AdjPauliWeb({ v: d.copy() for v, d in self.adj.items() })
         pw.es = self.es.copy()
@@ -49,40 +52,6 @@ class AdjPauliWeb:
 
     def neighbors(self, v: int):
         return self.adj[v].keys()
-
-    def remove_id(self, n: int):
-        n1, n2 = self.neighbors(n)
-        sequence = [
-            self.es.get((n1, n), 'I'), self.es.get((n, n1), 'I'),
-            self.es.get((n, n2), 'I'), self.es.get((n2, n), 'I')
-        ]
-        if len(set(sequence)) != 1:
-            raise AssertionError(f"Invalid configuration of id-node {n} half edges: {sequence}!")
-        self.remove_edges([(n1, n), (n, n2)])
-        self.add_edge((n1, n2), sequence[0])
-
-    def remove_hadamard(self, h: Tuple[int, int, int]):
-        w1, w2, w3 = h
-        w1_left, w1_right = self.neighbors(w1)
-        w1_ext = w1_left if w1_right == w2 else w1_right
-        w3_left, w3_right = self.neighbors(w3)
-        w3_ext = w3_right if w3_left == w2 else w3_left
-
-        sequence = [
-            self.es.get((w1_ext, w1), 'I'), self.es.get((w1, w1_ext), 'I'),
-            self.es.get((w1, w2), 'I'), self.es.get((w2, w1), 'I'),
-            self.es.get((w2, w3), 'I'), self.es.get((w3, w2), 'I'),
-            self.es.get((w3, w3_ext), 'I'), self.es.get((w3_ext, w3), 'I')
-        ]
-        if sequence != ['Z', 'Z', 'Z', 'Z', 'Y', 'Y', 'X', 'X'] \
-                and sequence != ['X', 'X', 'Y', 'Y', 'Z', 'Z', 'Z', 'Z'] \
-                and sequence != ['Y', 'Y', 'X', 'X', 'X', 'X', 'Y', 'Y'] \
-                and sequence != ['I', 'I', 'I', 'I', 'I', 'I', 'I', 'I']:
-            raise AssertionError(f"Invalid configuration of H-nodes {str((w1, w2, w3))} half edges: {sequence}!")
-
-        self.remove_edges([(w1_ext, w1), (w1, w2), (w2, w3), (w3, w3_ext)])
-        self.add_half_edge((w1_ext, w3_ext), sequence[0])
-        self.add_half_edge((w3_ext, w1_ext), sequence[-1])
 
     def add_half_edge(self, v_pair: ET, pauli: Pauli):
         p = self.es.get(v_pair, Pauli.I) * pauli

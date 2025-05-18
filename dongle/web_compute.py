@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from fractions import Fraction
-from typing import Dict, Optional, Any, List, Tuple
+from typing import Dict, Optional, Any, List, Tuple, ClassVar
 
 import numpy as np
 
@@ -27,6 +27,72 @@ class GraphOrdering:
     def graph(self, o: int) -> int:
         return self.ordering_to_graph[o]
 
+class WebAwareTransformation:
+    def remove_from(self, web: AdjPauliWeb) -> None:
+        raise NotImplementedError()
+
+@dataclass(init=True, repr=False, eq=False, frozen=True)
+class ExtraIdNode(WebAwareTransformation):
+    node: int
+
+    def remove_from(self, web: AdjPauliWeb) -> None:
+        n1, n2 = web.neighbors(self.node)
+        sequence = [web[n1, self.node], web[self.node, n1],web[self.node, n2], web[n2, self.node]]
+        if len(set(sequence)) != 1:
+            raise AssertionError(f"Invalid configuration of id-node {self.node} half edges: {sequence}!")
+        web.remove_edges([(n1, self.node), (self.node, n2)])
+        web.add_edge((n1, n2), sequence[0])
+
+@dataclass(init=True, repr=False, eq=False, frozen=True)
+class ExpandedHadamard(WebAwareTransformation):
+    r1_node: int
+    r2_node: int
+    r3_node: int
+    flipped_decomposition: bool
+
+    id_sequence: ClassVar[List[Pauli]] = ['I', 'I', 'I', 'I', 'I', 'I', 'I', 'I']
+    y_sequence: ClassVar[List[Pauli]] = ['Y', 'Y', 'X', 'X', 'X', 'X', 'Y', 'Y']
+    zx_sequence: ClassVar[List[Pauli]] = ['Z', 'Z', 'Z', 'Z', 'Y', 'Y', 'X', 'X']
+    xz_sequence: ClassVar[List[Pauli]] = ['X', 'X', 'Y', 'Y', 'Z', 'Z', 'Z', 'Z']
+
+    def _sequence_valid(self, sequence: List[Pauli]) -> bool:
+        if sequence == ExpandedHadamard.id_sequence:
+            return True
+
+        if self.flipped_decomposition and (
+            sequence == list(map(lambda s: Pauli.h_flip(s), ExpandedHadamard.zx_sequence))
+                or sequence == list(map(lambda s: Pauli.h_flip(s), ExpandedHadamard.xz_sequence))
+                or sequence == list(map(lambda s: Pauli.h_flip(s), ExpandedHadamard.y_sequence))
+        ):
+            return True
+        elif sequence == ExpandedHadamard.zx_sequence\
+                or sequence == ExpandedHadamard.xz_sequence\
+                or sequence == ExpandedHadamard.y_sequence:
+            return True
+
+        return False
+
+
+    def remove_from(self, web: AdjPauliWeb) -> None:
+        w1, w2, w3 = self.r1_node, self.r2_node, self.r3_node
+        w1_left, w1_right = web.neighbors(w1)
+        w1_ext = w1_left if w1_right == w2 else w1_right
+        w3_left, w3_right = web.neighbors(w3)
+        w3_ext = w3_right if w3_left == w2 else w3_left
+
+        sequence = [
+            web[w1_ext, w1], web[w1, w1_ext],
+            web[w1, w2], web[w2, w1],
+            web[w2, w3], web[w3, w2],
+            web[w3, w3_ext], web[w3_ext, w3]
+        ]
+        if not self._sequence_valid(sequence):
+            raise AssertionError(f"Invalid configuration of H-nodes {str((w1, w2, w3))} half edges: {sequence}!")
+
+        web.remove_edges([(w1_ext, w1), (w1, w2), (w2, w3), (w3, w3_ext)])
+        web.add_half_edge((w1_ext, w3_ext), sequence[0])
+        web.add_half_edge((w3_ext, w1_ext), sequence[-1])
+
 def _place_node_between(g: GraphS, _type: VertexType, n1: int, n2: int) -> int:
     node = g.add_vertex(_type)
     n1_qubit, n1_row = g.qubit(n1), g.row(n1)
@@ -43,24 +109,31 @@ def _place_node_between(g: GraphS, _type: VertexType, n1: int, n2: int) -> int:
 
     return node
 
-def _euler_expand_edges(g: GraphS) -> List[Tuple[int, int, int]]:
+def _euler_expand_edges(g: GraphS) -> List[ExpandedHadamard]:
     """
     A cut down version of pyzx.euler_expansion which does not add global scalars and does not prematurely 'merge' spiders
     """
+    decomposition_xzx = [VertexType.X, VertexType.Z, VertexType.X]
+    decomposition_zxz = [VertexType.Z, VertexType.X, VertexType.Z]
+
     expanded_edges = []
     for v1, v2 in match_hadamard_edge(g):
-        w2 = _place_node_between(g, VertexType.X, v1, v2)
+        flip = g.type(v1) == g.type(v2) and g.type(v1) == VertexType.Z
+            # Change decomposition to avoid introducing more X-spiders due to adjacent Z-spider
+        pattern = decomposition_xzx if flip else decomposition_zxz
+
+        w2 = _place_node_between(g, pattern[1], v1, v2)
         g.add_to_phase(w2, Fraction(1, 2))
-        w1 = _place_node_between(g, VertexType.Z, v1, w2)
+        w1 = _place_node_between(g, pattern[0], v1, w2)
         g.add_to_phase(w1, Fraction(1, 2))
-        w3 = _place_node_between(g, VertexType.Z, w2, v2)
+        w3 = _place_node_between(g, pattern[2], w2, v2)
         g.add_to_phase(w3, Fraction(1, 2))
 
-        expanded_edges.append((w1, w2, w3))
+        expanded_edges.append(ExpandedHadamard(w1, w2, w3, flipped_decomposition=flip))
 
     return expanded_edges
 
-def _to_red_green_graphlike(g: GraphS, debug: Optional[Dict[str, Any]] = None) -> Tuple[List[int], List[Tuple[int, int, int]]]:
+def _to_red_green_graphlike(g: GraphS, debug: Optional[Dict[str, Any]] = None) -> Tuple[List[ExtraIdNode], List[ExpandedHadamard]]:
     # Convert all H-edges and Hadamards to red and green spiders
     hadamard_simp(g, quiet=True)
     expanded_hadamards = _euler_expand_edges(g)
@@ -95,23 +168,23 @@ def _to_red_green_graphlike(g: GraphS, debug: Optional[Dict[str, Any]] = None) -
                 new_type = VertexType.X
             else:
                 new_type = VertexType.Z
-            new_nodes.append(_place_node_between(g, new_type, s, t))
+            new_nodes.append(ExtraIdNode(_place_node_between(g, new_type, s, t)))
 
     # Ensure boundaries are not connected to a red spider
     boundaries = [v for v in g.vertices() if g.type(v) == VertexType.BOUNDARY]
     for boundary in boundaries:
         neighbour = list(g.neighbors(boundary))[0]
         if g.type(neighbour) == VertexType.X:
-            new_nodes.append(_place_node_between(g, VertexType.Z, boundary, neighbour))
+            new_nodes.append(ExtraIdNode(_place_node_between(g, VertexType.Z, boundary, neighbour)))
 
     # Ensure boundaries are not connected to green spiders with nonzero phase or more than one boundary connection
     for boundary in boundaries:
         neighbour = list(g.neighbors(boundary))[0]
         neighbour_boundaries = [v for v in g.neighbors(neighbour) if g.type(v) == VertexType.BOUNDARY]
         if g.phase(neighbour) != 0 or len(neighbour_boundaries) > 1:
-            new_x = _place_node_between(g, VertexType.X, boundary, neighbour)
+            new_x = ExtraIdNode(_place_node_between(g, VertexType.X, boundary, neighbour))
             new_nodes.append(new_x)
-            new_nodes.append(_place_node_between(g, VertexType.Z, boundary, new_x))
+            new_nodes.append(ExtraIdNode(_place_node_between(g, VertexType.Z, boundary, new_x.node)))
 
     if debug is not None:
         debug['g'] = g
@@ -202,15 +275,15 @@ def _convert_firing_assignment_to_g_web(g: GraphS, ordering: GraphOrdering, v: L
     return g_web
 
 def _reduce_g_web_to_original_web(
-        new_nodes: List[int],
-        expanded_hadamards: List[Tuple[int, int, int]],
+        new_nodes: List[ExtraIdNode],
+        expanded_hadamards: List[ExpandedHadamard],
         g_web: PauliWeb
 ) -> AdjPauliWeb:
     adj_web = AdjPauliWeb.from_regular_web(g_web)
     for n in new_nodes:
-        adj_web.remove_id(n)
+        n.remove_from(adj_web)
     for h in expanded_hadamards:
-        adj_web.remove_hadamard(h)
+        h.remove_from(adj_web)
     return adj_web
 
 def compute_webs(graph: GraphS, debug: Optional[Dict[str, Any]] = None) -> List[AdjPauliWeb]:
