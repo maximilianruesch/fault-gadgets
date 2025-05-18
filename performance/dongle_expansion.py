@@ -19,8 +19,7 @@ def run_cnot():
     bg = DongleGraph.from_graph(g)
     bg.add_all_dongles()
 
-    # print(timeit(lambda: _expand(bg), globals=globals(), number=1))
-    _expand(bg)
+    print(timeit(lambda: _expand(bg), globals=globals(), number=1))
 
 def run_clifford():
     g = zx.generate.cliffords(4, 7)
@@ -32,8 +31,7 @@ def run_clifford():
     bg = DongleGraph.from_graph(g)
     bg.add_all_dongles()
 
-    # print(timeit(lambda: _expand(bg), globals=globals(), number=1))
-    _expand(bg)
+    print(timeit(lambda: _expand(bg), globals=globals(), number=1))
 
 if __name__ == "__main__":
     run_cnot()

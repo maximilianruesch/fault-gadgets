@@ -36,5 +36,5 @@ def expand_all_dongles(g: DongleGraph, quiet: bool = True) -> None:
     for dongle_id, dongle in g.dongles().items():
         web = compute_web_for_dongle(g, dongle_id)
         fire_web_onto_dongle(g, dongle_id, web, quiet=quiet)
-        g.merge_targets(quiet=quiet)
         g.reassign_dongle_positions()
+    g.merge_targets(quiet=quiet)
