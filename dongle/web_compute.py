@@ -313,7 +313,7 @@ def compute_web_for_dongle(graph: DongleGraph, dongle_id: int, debug: Optional[D
     """
 
     g = graph.clone(DongleGraph())
-    g.full_instance()
+    g.realise_all_targets()
 
     dongle = g.dongles()[dongle_id]
     g.set_type(dongle.spawn, VertexType.BOUNDARY)

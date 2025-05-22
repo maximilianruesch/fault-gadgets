@@ -22,8 +22,10 @@ def _assert_circuit_equality(g: BaseGraph, dg: DongleGraph, verbosity_level) -> 
     g_tensor = zx.tensorfy(g_cp)
 
     dg_cp = dg.clone(DongleGraph())
-    from_hypergraph_form(dg_cp)
     dg_cp.realise_all_targets()
+    dg_cp.reassign_dongle_positions()
+    from_hypergraph_form(dg_cp)
+
     num_v, num_e = dg_cp.num_vertices(), dg_cp.num_edges()
     full_reduce(dg_cp)
     if verbosity_level > 1:
@@ -44,7 +46,7 @@ def test_cnot(qubits, depth, verbosity_level):
     _assert_circuit_equality(g, dg, verbosity_level=verbosity_level)
 
 @pytest.mark.parametrize("qubits,depth", [(3, 3), (4, 7)])
-def test_clifford(qubits, depth, verbosity_level): # TODO this test is flaky, numpy sometimes errors
+def test_clifford(qubits, depth, verbosity_level):
     g = zx.generate.cliffords(qubits, depth)
     zx.clifford_simp(g, quiet=True)
     g.normalize()
