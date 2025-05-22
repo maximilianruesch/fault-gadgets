@@ -1,4 +1,4 @@
-from dongle import DongleGraph, AdjPauliWeb, DongleTargetType, compute_web_for_dongle
+from dongle import DongleGraph, AdjPauliWeb, DongleTargetType, compute_webs_for_dongles
 from pyzx import VertexType
 
 
@@ -33,7 +33,9 @@ def fire_web_onto_dongle(g: DongleGraph, dongle_id: int, web: AdjPauliWeb, quiet
 
 
 def expand_all_dongles(g: DongleGraph, quiet: bool = True) -> None:
+    if not quiet:
+        print(f"Expanding {len(g.dongles())} dongles!")
+    webs = compute_webs_for_dongles(g, g.dongles().keys())
     for dongle_id, dongle in g.dongles().items():
-        web = compute_web_for_dongle(g, dongle_id)
-        fire_web_onto_dongle(g, dongle_id, web, quiet=quiet)
+        fire_web_onto_dongle(g, dongle_id, webs[dongle_id], quiet=quiet)
     g.merge_targets(quiet=quiet)

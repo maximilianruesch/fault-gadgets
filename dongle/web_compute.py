@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from fractions import Fraction
-from typing import Dict, Optional, Any, List, Tuple, ClassVar
+from typing import Dict, Optional, Any, List, Tuple, ClassVar, Mapping, Iterable
 
 import numpy as np
 
@@ -307,56 +307,43 @@ def compute_webs(graph: GraphS, debug: Optional[Dict[str, Any]] = None) -> List[
     return list(map(lambda web: _reduce_g_web_to_original_web(new_nodes, expanded_hadamards, web), g_webs))
 
 def compute_web_for_dongle(graph: DongleGraph, dongle_id: int, debug: Optional[Dict[str, Any]] = None) -> AdjPauliWeb:
+    return compute_webs_for_dongles(graph, [dongle_id], debug)[dongle_id]
+
+def compute_webs_for_dongles(graph: DongleGraph, dongle_ids: Iterable[int], debug: Optional[Dict[str, Any]] = None) -> Mapping[int, AdjPauliWeb]:
     """
     Computes a Pauli web for the given dongle in the graph context.
     A valid web for the dongle is one that features a Z-type edge between the dongles spawn and distributor.
     """
-
     g = graph.clone(DongleGraph())
     g.realise_all_targets()
 
-    dongle = g.dongles()[dongle_id]
-    g.set_type(dongle.spawn, VertexType.BOUNDARY)
+    for dongle_id in dongle_ids:
+        dongle = g.dongles()[dongle_id]
+        g.set_type(dongle.spawn, VertexType.BOUNDARY)
 
-    # Computing webs
+    # Computing all webs of all dongles
     new_nodes, expanded_hadamards = _to_red_green_graphlike(g, debug)
     ordering = _determine_ordering(g, debug)
+
     m_d = _create_firing_verification(g, ordering, debug)
-    sols = m_d.nullspace()
+    sols_basis = Mat2(m_d.nullspace())
 
-    spawn_z_boundary_index = ordering.ord(list(g.neighbors(dongle.spawn))[0])
-    sol_types = [
-        Pauli.from_binary(
-            z_flip=sol[spawn_z_boundary_index],
-            x_flip=sol[spawn_z_boundary_index + len(ordering.z_boundaries)]
-        ) for sol in sols
-    ]
+    webs = dict()
+    for dongle_id in dongle_ids:
+        dongle = g.dongles()[dongle_id]
+        spawn_z_boundary_index = ordering.ord(list(g.neighbors(dongle.spawn))[0])
 
-    # Fitting web is given directly, note that it might not be minimal in weight overall
-    if Pauli.Z in sol_types:
-        z_sols = [web for i, web in enumerate(sols) if sol_types[i] == Pauli.Z]
-        z_g_webs = map(lambda v: _convert_firing_assignment_to_g_web(g, ordering, v), z_sols)
-        z_webs = map(lambda web: _reduce_g_web_to_original_web(new_nodes, expanded_hadamards, web), z_g_webs)
-        min_web = min(z_webs, key=lambda web: sum([1 if pauli != 'I' else 0 for pauli in web.half_edges().values()]))
+        new_basis = sols_basis.copy()
+        constraint = Mat2([[int(j == k) for j in range(sols_basis.cols())] for k in range(len(ordering.z_boundaries))])
+        new_basis[sols_basis.rows():,:] = constraint
 
-        return min_web
+        b = Mat2.unit_vector(new_basis.rows(),sols_basis.rows() + spawn_z_boundary_index)
+        dongle_sol = new_basis.solve(b)
+        if dongle_sol is None:
+            raise AssertionError(f"No valid assignment in basis found for dongle {dongle}!")
+        firing_assignment = dongle_sol.transpose().data[0][:sols_basis.cols()]
 
-    # Compute fitting web by complementing a Y web with an X web to yield a Z web
-    if Pauli.X in sol_types and Pauli.Y in sol_types:
-        x_sol = sols[sol_types.index(Pauli.X)]
-        y_sol = sols[sol_types.index(Pauli.Y)]
+        g_web = _convert_firing_assignment_to_g_web(g, ordering, firing_assignment)
+        webs[dongle_id] = _reduce_g_web_to_original_web(new_nodes, expanded_hadamards, g_web)
 
-        x_web = _reduce_g_web_to_original_web(
-            new_nodes,
-            expanded_hadamards,
-            _convert_firing_assignment_to_g_web(g, ordering, x_sol)
-        )
-        y_web = _reduce_g_web_to_original_web(
-            new_nodes,
-            expanded_hadamards,
-            _convert_firing_assignment_to_g_web(g, ordering, y_sol)
-        )
-
-        return x_web * y_web
-
-    raise AssertionError(f"No fitting webs found for dongle {dongle}!")
+    return webs

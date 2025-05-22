@@ -2,7 +2,7 @@ import random
 
 import pytest
 
-from pyzx import compare_tensors, full_reduce
+from pyzx import compare_tensors, full_reduce, VertexType
 from pyzx.graph.base import BaseGraph
 from pyzx.hsimplify import from_hypergraph_form
 
@@ -45,7 +45,7 @@ def test_cnot(qubits, depth, verbosity_level):
 
     _assert_circuit_equality(g, dg, verbosity_level=verbosity_level)
 
-@pytest.mark.parametrize("qubits,depth", [(3, 3), (4, 7)])
+@pytest.mark.parametrize("qubits,depth", [(3, 3), (4, 7), (9, 9)])
 def test_clifford(qubits, depth, verbosity_level):
     g = zx.generate.cliffords(qubits, depth)
     zx.clifford_simp(g, quiet=True)
