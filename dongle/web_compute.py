@@ -317,33 +317,40 @@ def compute_webs_for_dongles(graph: DongleGraph, dongle_ids: Iterable[int], debu
     g = graph.clone(DongleGraph())
     g.realise_all_targets()
 
-    for dongle_id in dongle_ids:
-        dongle = g.dongles()[dongle_id]
-        g.set_type(dongle.spawn, VertexType.BOUNDARY)
+    dongle_spawns = [g.dongles()[dongle_id].spawn for dongle_id in dongle_ids]
+    for spawn in dongle_spawns:
+        g.set_type(spawn, VertexType.BOUNDARY)
 
     # Computing all webs of all dongles
     new_nodes, expanded_hadamards = _to_red_green_graphlike(g, debug)
     ordering = _determine_ordering(g, debug)
 
     m_d = _create_firing_verification(g, ordering, debug)
-    sols_basis = Mat2(m_d.nullspace())
+    sols_basis = Mat2(m_d.nullspace()).transpose()
+
+    # A restriction of the solution basis focused on the entries for Z-edges on dongle spawns.
+    # Contains one additional entry for restricting X-edges on the dongle to be analyzed.
+    # Dimension: (number_dongles + 1) x (web solution vector count)
+    spawn_restricted_basis = []
+    for spawn in dongle_spawns:
+        spawn_restricted_basis.append(sols_basis.data[ordering.ord(list(g.neighbors(spawn))[0])])
+    spawn_restricted_basis.append([])
 
     webs = dict()
-    for dongle_id in dongle_ids:
+    for dongle_id in dongle_ids: # TODO parallelize
         dongle = g.dongles()[dongle_id]
-        spawn_z_boundary_index = ordering.ord(list(g.neighbors(dongle.spawn))[0])
 
-        new_basis = sols_basis.copy()
-        constraint = Mat2([[int(j == k) for j in range(sols_basis.cols())] for k in range(len(ordering.z_boundaries))])
-        new_basis[sols_basis.rows():,:] = constraint
+        # Replace X constraint only for current dongle spawn
+        spawn_restricted_basis.pop()
+        spawn_restricted_basis.append(sols_basis.data[ordering.ord(list(g.neighbors(dongle.spawn))[0]) + len(ordering.z_boundaries)])
 
-        b = Mat2.unit_vector(new_basis.rows(),sols_basis.rows() + spawn_z_boundary_index)
-        dongle_sol = new_basis.solve(b)
-        if dongle_sol is None:
-            raise AssertionError(f"No valid assignment in basis found for dongle {dongle}!")
-        firing_assignment = dongle_sol.transpose().data[0][:sols_basis.cols()]
+        b = Mat2.unit_vector(len(dongle_spawns) + 1, dongle_spawns.index(dongle.spawn))
+        basis_sol = Mat2(spawn_restricted_basis).solve(b)
+        if basis_sol is None:
+           raise AssertionError(f"No valid assignment in basis found for {dongle}!")
+        firing_assignment = sols_basis * basis_sol
 
-        g_web = _convert_firing_assignment_to_g_web(g, ordering, firing_assignment)
+        g_web = _convert_firing_assignment_to_g_web(g, ordering, firing_assignment.transpose().data[0])
         webs[dongle_id] = _reduce_g_web_to_original_web(new_nodes, expanded_hadamards, g_web)
 
     return webs
