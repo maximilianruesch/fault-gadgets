@@ -18,7 +18,7 @@ def verbosity_level(request):
     return request.config.option.verbose
 
 def _assert_circuit_equality(g: BaseGraph, dg: DongleGraph, verbosity_level) -> None:
-    g_tensor = zx.tensorfy(g)
+    g_tensor = zx.tensorfy(g, preserve_scalar=False)
 
     dg_cp = dg.clone(DongleGraph())
     dg_cp.realise_all_targets()
@@ -29,7 +29,7 @@ def _assert_circuit_equality(g: BaseGraph, dg: DongleGraph, verbosity_level) -> 
     full_reduce(dg_cp)
     if verbosity_level > 1:
         print(f"Reduced dongle graph from {num_v}:{num_e} to {dg_cp.num_vertices()}:{dg_cp.num_edges()}")
-    dg_tensor = zx.tensorfy(dg_cp)
+    dg_tensor = zx.tensorfy(dg_cp, preserve_scalar=False)
 
     assert compare_tensors(g_tensor, dg_tensor, preserve_scalar=False)
 
