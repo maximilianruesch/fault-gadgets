@@ -2,7 +2,7 @@ import random
 
 import pytest
 
-from pyzx import compare_tensors, full_reduce, VertexType
+from pyzx import compare_tensors, full_reduce
 from pyzx.graph.base import BaseGraph
 from pyzx.hsimplify import from_hypergraph_form
 
@@ -18,8 +18,7 @@ def verbosity_level(request):
     return request.config.option.verbose
 
 def _assert_circuit_equality(g: BaseGraph, dg: DongleGraph, verbosity_level) -> None:
-    g_cp = g.clone()
-    g_tensor = zx.tensorfy(g_cp)
+    g_tensor = zx.tensorfy(g)
 
     dg_cp = dg.clone(DongleGraph())
     dg_cp.realise_all_targets()
