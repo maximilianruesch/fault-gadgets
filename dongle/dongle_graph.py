@@ -1,4 +1,4 @@
-from typing import Tuple, Dict, Iterable, Literal, List, Optional
+from typing import Tuple, Dict, Iterable, Literal, List, Optional, Mapping
 
 from pyzx.graph.base import upair
 from pyzx.utils import toggle_edge
@@ -63,15 +63,21 @@ class DongleGraph(GraphS):
     def dongles(self) -> Dict[int, Dongle]:
         return self._dongles
 
-    def add_all_dongles(self):
+    def add_all_dongles(self) -> Mapping[ET, Tuple[int, int, int]]:
         if len(self._on_edge) != 0:
             raise ValueError(f"The graph already has some dongles!")
 
+        edge_to_dongle_ids = dict()
         for e1, e2 in list(self.edges()):
-            if self.type(e1) is not VertexType.BOUNDARY and self.type(e2) is not VertexType.BOUNDARY:
-                self.add_dongles((e1, e2))
+            # Dongles on inputs and outputs do not change for rewrites, thus skip
+            if self.type(e1) is VertexType.BOUNDARY or self.type(e2) is VertexType.BOUNDARY:
+               continue
 
-    def add_dongles(self, edge: ET) -> Tuple[Dongle, Dongle, Dongle]:
+            edge_to_dongle_ids[(e1, e2)] = self.add_dongles((e1, e2))
+
+        return edge_to_dongle_ids
+
+    def add_dongles(self, edge: ET) -> Tuple[int, int, int]:
         edge_type = self.edge_type(edge)
         if edge_type == 0:
             raise ValueError('Edge to convert is not in graph!')
@@ -82,7 +88,7 @@ class DongleGraph(GraphS):
                 self._add_dongle(types=['Z'], edge=edge),
                 self._add_dongle(types=['Y'], edge=edge))
 
-    def _add_dongle(self, types: Iterable[Literal['X', 'Y', 'Z']], edge: Optional[ET] = None) -> Dongle:
+    def _add_dongle(self, types: Iterable[Literal['X', 'Y', 'Z']], edge: Optional[ET] = None) -> int:
         spawn = self.add_vertex(VertexType.Z, qubit=-3)
         dist = self.add_vertex(VertexType.X, qubit=-2)
         self.add_edge((spawn, dist), edgetype=EdgeType.SIMPLE)
@@ -98,7 +104,7 @@ class DongleGraph(GraphS):
             if target_type == 'Z' or target_type == 'Y':
                 self.add_target(DongleTargetType.Z, dongle_id=_id, edge=edge)
 
-        return dongle
+        return _id
 
     def add_target(self, _type: DongleTargetType, dongle_id: int, edge: ET) -> DongleTarget:
         _id = self.add_vertex(VertexType.Z_BOX) # TODO choose a more appropriate node type
