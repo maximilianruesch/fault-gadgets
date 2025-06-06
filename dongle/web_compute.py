@@ -270,6 +270,27 @@ def compute_webs(graph: GraphS) -> List[AdjPauliWeb]:
 
     return list(map(lambda web: _reduce_g_web_to_original_web(new_nodes, expanded_hadamards, web), g_webs))
 
+def compute_detecting_regions(graph: GraphS) -> List[AdjPauliWeb]:
+    g = graph.clone(GraphS())
+
+    new_nodes, expanded_hadamards = _to_red_green_graphlike(g)
+    ordering = _determine_ordering(g)
+    m_d = _create_firing_verification(g, ordering)
+
+    # Compute basis of valid firing assignment space
+    sol_basis = Mat2(m_d.nullspace()).transpose()
+    # Search for solutions that do not highlight boundary edges, i.e. detecting regions
+    boundary_selected_basis = sol_basis[:len(ordering.z_boundaries) * 2,:]
+    boundary_nullspace_vectors = boundary_selected_basis.nullspace()
+    # Empty nullspace of boundary edges -> no webs that highlight no boundary edges -> no detecting regions
+    if len(boundary_nullspace_vectors) == 0:
+        return []
+
+    region_sols = (Mat2(boundary_nullspace_vectors) * sol_basis.transpose()).data
+    g_webs = list(map(lambda v: _convert_firing_assignment_to_g_web(g, ordering, v), region_sols))
+
+    return list(map(lambda web: _reduce_g_web_to_original_web(new_nodes, expanded_hadamards, web), g_webs))
+
 def compute_web_for_dongle(graph: DongleGraph, dongle_id: int) -> AdjPauliWeb:
     return compute_webs_for_dongles(graph, [dongle_id])[dongle_id]
 
