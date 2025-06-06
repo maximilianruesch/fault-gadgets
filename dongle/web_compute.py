@@ -27,12 +27,8 @@ class GraphOrdering:
     def graph(self, o: int) -> int:
         return self.ordering_to_graph[o]
 
-class WebAwareTransformation:
-    def remove_from(self, web: AdjPauliWeb) -> None:
-        raise NotImplementedError()
-
 @dataclass(init=True, repr=False, eq=False, frozen=True)
-class ExtraIdNode(WebAwareTransformation):
+class ExtraIdNode:
     node: int
 
     def remove_from(self, web: AdjPauliWeb) -> None:
@@ -44,7 +40,7 @@ class ExtraIdNode(WebAwareTransformation):
         web.add_edge((n1, n2), sequence[0])
 
 @dataclass(init=True, repr=False, eq=False, frozen=True)
-class ExpandedHadamard(WebAwareTransformation):
+class ExpandedHadamard:
     r1_node: int
     r2_node: int
     r3_node: int

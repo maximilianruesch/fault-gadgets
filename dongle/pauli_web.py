@@ -1,5 +1,5 @@
 from enum import StrEnum
-from typing import Dict, Tuple, List
+from typing import Dict, List
 
 from dongle.dongle_graph import ET
 from pyzx.graph.graph_s import GraphS
@@ -94,7 +94,7 @@ class AdjPauliWeb:
         if not isinstance(web.g.clone(), GraphS):
             raise ValueError("Given web has to be associated with a GraphS graph!")
 
-        adj_web = AdjPauliWeb(web.g.clone().graph)
+        adj_web = AdjPauliWeb({ v: d.copy() for v, d in web.g.graph.items() })
         adj_web.es = {k: Pauli(v) for k, v in web.es.items()}
 
         return adj_web
