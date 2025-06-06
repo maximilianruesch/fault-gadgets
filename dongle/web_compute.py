@@ -129,7 +129,7 @@ def _euler_expand_edges(g: GraphS) -> List[ExpandedHadamard]:
 
     return expanded_edges
 
-def _to_red_green_graphlike(g: GraphS, debug: Optional[Dict[str, Any]] = None) -> Tuple[List[ExtraIdNode], List[ExpandedHadamard]]:
+def _to_red_green_graphlike(g: GraphS) -> Tuple[List[ExtraIdNode], List[ExpandedHadamard]]:
     # Convert all H-edges and Hadamards to red and green spiders
     hadamard_simp(g, quiet=True)
     expanded_hadamards = _euler_expand_edges(g)
@@ -142,17 +142,11 @@ def _to_red_green_graphlike(g: GraphS, debug: Optional[Dict[str, Any]] = None) -
             (v_type != VertexType.Z and v_type != VertexType.X and v_type != VertexType.BOUNDARY):
             offending_vertices.append(v)
     if len(offending_vertices) > 0:
-        if debug is not None:
-            debug['offending_vertices'] = offending_vertices
-
         raise AssertionError(f"Given diagram is not a clifford diagram up to hadamard expansion. The following "
                              f"vertices are either not of type X,Z,BOUNDARY or have a non-clifford "
                              f"phase: {', '.join(map(str, offending_vertices))}")
     offending_edges = [e for e in g.edges() if g.edge_type(e) != EdgeType.SIMPLE]
     if len(offending_edges) > 0:
-        if debug is not None:
-            debug['offending_edges'] = offending_edges
-
         raise AssertionError(f"Given diagram is not a clifford diagram up to hadamard expansion. The following "
                              f"edges are not simple edges: {', '.join(map(str, offending_edges))}")
 
@@ -182,26 +176,13 @@ def _to_red_green_graphlike(g: GraphS, debug: Optional[Dict[str, Any]] = None) -
             new_nodes.append(new_x)
             new_nodes.append(ExtraIdNode(_place_node_between(g, VertexType.Z, boundary, new_x.node)))
 
-    if debug is not None:
-        debug['g'] = g
-        debug['new_nodes'] = new_nodes
-        debug['boundaries'] = boundaries
-        gc = g.clone(DongleGraph())
-        to_gh(gc)
-        debug['gh'] = gc
-        debug['graphlike'] = is_graph_like(gc, strict=True)
-
     return new_nodes, expanded_hadamards
 
-def _determine_ordering(g: GraphS, debug: Optional[Dict[str, Any]] = None) -> GraphOrdering:
+def _determine_ordering(g: GraphS) -> GraphOrdering:
     boundaries = [v for v in g.vertices() if g.type(v) == VertexType.BOUNDARY]
     z_boundaries = {list(g.neighbors(b))[0]: b for b in boundaries}
     internal_spiders = list(g.vertex_set().difference(boundaries).difference(z_boundaries.keys()))
     pi_2_spiders = list(filter(lambda _v: g.phase(_v).denominator == 2, internal_spiders))
-
-    if debug is not None:
-        debug['z_boundaries'] = z_boundaries
-        debug['z_boundaries_types'] = list(map(lambda _v: g.type(_v), z_boundaries.keys()))
 
     graph_to_ordering: Dict[int, int] = dict()
     ordering_to_graph: Dict[int, int] = dict()
@@ -221,7 +202,7 @@ def _determine_ordering(g: GraphS, debug: Optional[Dict[str, Any]] = None) -> Gr
         
     return GraphOrdering(graph_to_ordering, ordering_to_graph, z_boundaries, internal_spiders, pi_2_spiders)
 
-def _create_firing_verification(g: GraphS, ordering: GraphOrdering, debug: Optional[Dict[str, Any]] = None) -> Mat2:
+def _create_firing_verification(g: GraphS, ordering: GraphOrdering) -> Mat2:
     num_z_boundaries = len(ordering.z_boundaries)
     num_non_boundary_spiders = num_z_boundaries + len(ordering.internal_spiders)
     adj_matrix = Mat2.zeros(num_non_boundary_spiders, num_non_boundary_spiders)
@@ -230,18 +211,12 @@ def _create_firing_verification(g: GraphS, ordering: GraphOrdering, debug: Optio
             if g.type(s) != VertexType.BOUNDARY and g.type(t) != VertexType.BOUNDARY:
                 adj_matrix[ordering.ord(s), ordering.ord(t)] += 1
 
-    if debug is not None:
-        debug['adj_matrix'] = adj_matrix
-
     m_d = Mat2.zeros(adj_matrix.rows(), adj_matrix.cols() + num_z_boundaries)
     m_d[0:num_z_boundaries, 0:num_z_boundaries] = Mat2.id(num_z_boundaries)
     m_d[:, num_z_boundaries:] = adj_matrix
     num_pi_2 = len(ordering.pi_2_spiders)
     slice_key = (slice(m_d.rows() - num_pi_2, m_d.rows()), slice(m_d.cols() - num_pi_2, m_d.cols()))
     m_d[slice_key] = Mat2((np.array(m_d[slice_key].data, dtype=bool) ^ np.array(Mat2.id(num_pi_2).data, dtype=bool)).tolist())
-
-    if debug is not None:
-        debug['M_D'] = m_d
 
     return m_d
 
@@ -282,30 +257,23 @@ def _reduce_g_web_to_original_web(
         h.remove_from(adj_web)
     return adj_web
 
-def compute_webs(graph: GraphS, debug: Optional[Dict[str, Any]] = None) -> List[AdjPauliWeb]:
+def compute_webs(graph: GraphS) -> List[AdjPauliWeb]:
     g = graph.clone(GraphS())
-    if debug is not None:
-        debug['g'] = g
 
-    new_nodes, expanded_hadamards = _to_red_green_graphlike(g, debug)
-    ordering = _determine_ordering(g, debug)
-    m_d = _create_firing_verification(g, ordering, debug)
+    new_nodes, expanded_hadamards = _to_red_green_graphlike(g)
+    ordering = _determine_ordering(g)
+    m_d = _create_firing_verification(g, ordering)
 
     # Compute span of space of valid firing assignments
     sols = m_d.nullspace()
-    if debug is not None:
-        debug['sols'] = sols
-
     g_webs = list(map(lambda v: _convert_firing_assignment_to_g_web(g, ordering, v), sols))
-    if debug is not None:
-        debug['g_webs'] = g_webs
 
     return list(map(lambda web: _reduce_g_web_to_original_web(new_nodes, expanded_hadamards, web), g_webs))
 
-def compute_web_for_dongle(graph: DongleGraph, dongle_id: int, debug: Optional[Dict[str, Any]] = None) -> AdjPauliWeb:
-    return compute_webs_for_dongles(graph, [dongle_id], debug)[dongle_id]
+def compute_web_for_dongle(graph: DongleGraph, dongle_id: int) -> AdjPauliWeb:
+    return compute_webs_for_dongles(graph, [dongle_id])[dongle_id]
 
-def compute_webs_for_dongles(graph: DongleGraph, dongle_ids: Iterable[int], debug: Optional[Dict[str, Any]] = None) -> Mapping[int, AdjPauliWeb]:
+def compute_webs_for_dongles(graph: DongleGraph, dongle_ids: Iterable[int]) -> Mapping[int, AdjPauliWeb]:
     """
     Computes a Pauli web for the given dongle in the graph context.
     A valid web for the dongle is one that features a Z-type edge between the dongles spawn and distributor.
@@ -318,10 +286,10 @@ def compute_webs_for_dongles(graph: DongleGraph, dongle_ids: Iterable[int], debu
         g.set_type(spawn, VertexType.BOUNDARY)
 
     # Computing all webs of all dongles
-    new_nodes, expanded_hadamards = _to_red_green_graphlike(g, debug)
-    ordering = _determine_ordering(g, debug)
+    new_nodes, expanded_hadamards = _to_red_green_graphlike(g)
+    ordering = _determine_ordering(g)
 
-    m_d = _create_firing_verification(g, ordering, debug)
+    m_d = _create_firing_verification(g, ordering)
     sols_basis = Mat2(m_d.nullspace()).transpose()
 
     # A restriction of the solution basis focused on the entries for Z-edges on dongle spawns.
