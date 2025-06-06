@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 from fractions import Fraction
-from typing import Dict, Optional, Any, List, Tuple, ClassVar, Mapping, Iterable
+from typing import Dict, List, Tuple, ClassVar, Mapping, Iterable
 
 import numpy as np
 
-from pyzx import Mat2, VertexType, is_graph_like, to_gh, EdgeType
+from pyzx import Mat2, VertexType, EdgeType
 from pyzx.editor_actions import match_hadamard_edge
 from pyzx.graph.graph_s import GraphS
 from pyzx.hsimplify import hadamard_simp
@@ -332,9 +332,9 @@ def compute_webs_for_dongles(graph: DongleGraph, dongle_ids: Iterable[int]) -> M
         basis_sol = Mat2(spawn_restricted_basis).solve(b)
         if basis_sol is None:
            raise AssertionError(f"No valid assignment in basis found for {dongle}!")
-        firing_assignment = np.dot(np.array(sols_basis.data, dtype=bool), np.array(basis_sol, dtype=bool))
+        firing_assignment = np.dot(np.array(sols_basis.data), np.array(basis_sol.data)) % 2
 
-        g_web = _convert_firing_assignment_to_g_web(g, ordering, firing_assignment.tolist())
+        g_web = _convert_firing_assignment_to_g_web(g, ordering, firing_assignment.flatten().tolist())
         webs[dongle_id] = _reduce_g_web_to_original_web(new_nodes, expanded_hadamards, g_web)
 
     return webs
