@@ -337,20 +337,19 @@ def compute_webs_for_dongles(graph: DongleGraph, dongle_ids: Iterable[int], debu
     spawn_restricted_basis.append([])
 
     webs = dict()
-    for dongle_id in dongle_ids: # TODO parallelize
+    for dongle_id in dongle_ids:
         dongle = g.dongles()[dongle_id]
-
         # Replace X constraint only for current dongle spawn
-        spawn_restricted_basis.pop()
-        spawn_restricted_basis.append(sols_basis.data[ordering.ord(list(g.neighbors(dongle.spawn))[0]) + len(ordering.z_boundaries)])
+        x_constraint_index = ordering.ord(list(g.neighbors(dongle.spawn))[0]) + len(ordering.z_boundaries)
+        spawn_restricted_basis[-1] = sols_basis.data[x_constraint_index]
 
         b = Mat2.unit_vector(len(dongle_spawns) + 1, dongle_spawns.index(dongle.spawn))
         basis_sol = Mat2(spawn_restricted_basis).solve(b)
         if basis_sol is None:
            raise AssertionError(f"No valid assignment in basis found for {dongle}!")
-        firing_assignment = sols_basis * basis_sol
+        firing_assignment = np.dot(np.array(sols_basis.data, dtype=bool), np.array(basis_sol, dtype=bool))
 
-        g_web = _convert_firing_assignment_to_g_web(g, ordering, firing_assignment.transpose().data[0])
+        g_web = _convert_firing_assignment_to_g_web(g, ordering, firing_assignment.tolist())
         webs[dongle_id] = _reduce_g_web_to_original_web(new_nodes, expanded_hadamards, g_web)
 
     return webs
