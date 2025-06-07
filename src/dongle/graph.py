@@ -141,6 +141,7 @@ class DongleGraph(GraphS):
         dongle.targets.remove(target)
         del self._in_dongle[_id]
         if len(dongle.targets) == 0:
+            self.remove_vertices([dongle.spawn, dongle.dist])
             del self._dongles[dongle.get_id()]
 
         del self._targets[_id]
