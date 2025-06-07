@@ -1,5 +1,8 @@
 lib/pyzx
 
+# PyPa
+src/pyzx_dongles.egg-info
+
 # Jetbrains
 .idea
 
