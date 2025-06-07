@@ -1,4 +1,4 @@
-from .dongle_graph import DongleGraph
+from .graph import DongleGraph
 from .dongles import Dongle, DongleTarget, DongleTargetType
 from .pauli_web import Pauli, AdjPauliWeb
 from .web_compute import compute_web_for_dongle, compute_webs_for_dongles, compute_webs, compute_detecting_regions

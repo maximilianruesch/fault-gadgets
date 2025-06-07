@@ -1,4 +1,7 @@
-from dongle import DongleGraph, AdjPauliWeb, DongleTargetType, compute_webs_for_dongles
+from .graph import DongleGraph
+from .pauli_web import AdjPauliWeb
+from .dongles import DongleTargetType
+from .web_compute import compute_webs_for_dongles
 from pyzx import VertexType
 
 

@@ -3,10 +3,9 @@ from typing import Tuple, Dict, Iterable, Literal, List, Optional, Mapping
 from pyzx.graph.base import upair
 from pyzx.utils import toggle_edge
 from .dongles import Dongle, DongleTarget, DongleTargetType
+from .util import ET
 from pyzx import EdgeType, VertexType
 from pyzx.graph.graph_s import GraphS
-
-ET = Tuple[int, int]
 
 class DongleGraph(GraphS):
     def __init__(self) -> None:
