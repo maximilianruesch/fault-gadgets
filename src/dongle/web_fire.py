@@ -12,9 +12,9 @@ def _ignore_dongle_internals(g: DongleGraph, web: AdjPauliWeb) -> AdjPauliWeb:
         new_web.es.pop((dongle.dist, dongle.spawn), '')
 
         for target in dongle.targets:
-            new_web.es.pop((dongle.dist, target.get_id()), '')
-            for n in g.neighbors(target.get_id()):
-                new_web.es.pop((target.get_id(), n), '')
+            new_web.es.pop((dongle.dist, target.id), '')
+            for n in g.neighbors(target.id):
+                new_web.es.pop((target.id, n), '')
 
     return new_web
 

@@ -20,7 +20,7 @@ class DongleGraph(GraphS):
     def clone(self, instance: Optional['DongleGraph'] = None) -> 'DongleGraph':
         cpy = GraphS.clone(self, instance)
         cpy._dongle_id_index = self._dongle_id_index
-        cpy._targets = { _id: target.copy() for _id, target in self._targets.items() }
+        cpy._targets = self._targets.copy()
         cpy._dongles = { _id: dongle.copy() for _id, dongle in self._dongles.items() }
         cpy._in_dongle = self._in_dongle.copy()
         cpy._on_edge = self._on_edge.copy()
@@ -107,7 +107,7 @@ class DongleGraph(GraphS):
 
     def add_target(self, _type: DongleTargetType, dongle_id: int, edge: ET) -> DongleTarget:
         _id = self.add_vertex(VertexType.Z_BOX) # TODO choose a more appropriate node type
-        _target = DongleTarget(_id=_id, _type=_type)
+        _target = DongleTarget(id=_id, type=_type)
         self._targets[_id] = _target
 
         dongle = self._dongles[dongle_id]
@@ -130,7 +130,7 @@ class DongleGraph(GraphS):
         return _target
 
     def _remove_target(self, target: DongleTarget) -> None:
-        _id = target.get_id()
+        _id = target.id
 
         left, right = self._local_info(_id)
         self.remove_vertex(_id)
@@ -142,7 +142,7 @@ class DongleGraph(GraphS):
         del self._in_dongle[_id]
         if len(dongle.targets) == 0:
             self.remove_vertices([dongle.spawn, dongle.dist])
-            del self._dongles[dongle.get_id()]
+            del self._dongles[dongle.id]
 
         del self._targets[_id]
 
@@ -151,7 +151,7 @@ class DongleGraph(GraphS):
             self._remove_target(target)
 
     def _update_target_edge(self, target: DongleTarget, edge: Optional[ET]) -> None:
-        _id = target.get_id()
+        _id = target.id
         old_edge = self._on_edge.get(_id)
         if old_edge is None and edge is None:
             return
@@ -176,8 +176,8 @@ class DongleGraph(GraphS):
         x_targets_by_edge: Dict[ET, List[DongleTarget]] = dict()
         z_targets_by_edge: Dict[ET, List[DongleTarget]] = dict()
         for target in self._dongles[dongle_id].targets:
-            edge = self._on_edge[target.get_id()]
-            if target.get_type() == DongleTargetType.X:
+            edge = self._on_edge[target.id]
+            if target.type == DongleTargetType.X:
                 if not x_targets_by_edge.__contains__(edge):
                     x_targets_by_edge[edge] = []
                 x_targets_by_edge[edge].append(target)
@@ -215,7 +215,7 @@ class DongleGraph(GraphS):
 
         # Adjust all distributors and spawn rows
         for dongle in self._dongles.values():
-            rows = [self.row(target.get_id()) for target in dongle.targets]
+            rows = [self.row(target.id) for target in dongle.targets]
             avg_row = sum(rows) / len(dongle.targets)
             self.set_row(dongle.dist, avg_row)
             self.set_row(dongle.spawn, avg_row)
@@ -228,7 +228,7 @@ class DongleGraph(GraphS):
         for _id, target in self._targets.items():
             self.set_type(_id, VertexType.Z)
             left, right = self._local_info(_id)
-            if target.get_type() == DongleTargetType.X:
+            if target.type == DongleTargetType.X:
                 self.set_edge_type((left, _id), toggle_edge(self.edge_type((left, _id))))
                 self.set_edge_type((_id, right), toggle_edge(self.edge_type((_id, right))))
 

@@ -1,12 +1,8 @@
-import random
-
 import pytest
 
 from pyzx import compare_tensors, id_simp, bialg_simp
 from pyzx.graph.base import BaseGraph
 from pyzx.hsimplify import from_hypergraph_form
-
-random.seed(50)
 
 from pyzx.editor_actions import match_hadamard_edge
 from pyzx.hrules import had_edge_to_hbox
