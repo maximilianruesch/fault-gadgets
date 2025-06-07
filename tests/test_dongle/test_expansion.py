@@ -2,7 +2,7 @@ import random
 
 import pytest
 
-from pyzx import compare_tensors, full_reduce
+from pyzx import compare_tensors, id_simp, bialg_simp
 from pyzx.graph.base import BaseGraph
 from pyzx.hsimplify import from_hypergraph_form
 
@@ -17,6 +17,12 @@ import pyzx as zx
 def verbosity_level(request):
     return request.config.option.verbose
 
+def _dongle_simp(dg: DongleGraph) -> None:
+    bialg_simp(dg)
+    id_simp(dg)
+
+    pass
+
 def _assert_circuit_equality(g: BaseGraph, dg: DongleGraph, verbosity_level) -> None:
     g_tensor = zx.tensorfy(g, preserve_scalar=False)
 
@@ -26,7 +32,7 @@ def _assert_circuit_equality(g: BaseGraph, dg: DongleGraph, verbosity_level) -> 
     from_hypergraph_form(dg_cp)
 
     num_v, num_e = dg_cp.num_vertices(), dg_cp.num_edges()
-    full_reduce(dg_cp)
+    _dongle_simp(dg_cp)
     if verbosity_level > 1:
         print(f"Reduced dongle graph from {num_v}:{num_e} to {dg_cp.num_vertices()}:{dg_cp.num_edges()}")
     dg_tensor = zx.tensorfy(dg_cp, preserve_scalar=False)
@@ -48,7 +54,6 @@ def test_cnot(qubits, depth, verbosity_level):
 def test_clifford(qubits, depth, verbosity_level):
     g = zx.generate.cliffords(qubits, depth)
     zx.clifford_simp(g, quiet=True)
-    g.normalize()
     for e in match_hadamard_edge(g):
         had_edge_to_hbox(g, e)
 
