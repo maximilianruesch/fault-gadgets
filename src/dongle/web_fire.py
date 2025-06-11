@@ -13,8 +13,9 @@ def _ignore_dongle_internals(g: DongleGraph, web: AdjPauliWeb) -> AdjPauliWeb:
 
         for target in dongle.targets:
             new_web.es.pop((dongle.dist, target.id), '')
-            for n in g.neighbors(target.id):
-                new_web.es.pop((target.id, n), '')
+            for edge in web.es.keys():
+                if edge[0] == target.id:
+                    new_web.es.pop(edge, '')
 
     return new_web
 
@@ -39,6 +40,6 @@ def expand_all_dongles(g: DongleGraph, quiet: bool = True) -> None:
     if not quiet:
         print(f"Expanding {len(g.dongles())} dongles!")
     webs = compute_webs_for_dongles(g, g.dongles().keys())
-    for dongle_id, dongle in g.dongles().items():
+    for dongle_id in g.dongles().keys():
         fire_web_onto_dongle(g, dongle_id, webs[dongle_id], quiet=quiet)
     g.merge_targets(quiet=quiet)

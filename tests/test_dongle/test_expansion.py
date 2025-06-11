@@ -17,11 +17,7 @@ def _dongle_simp(dg: DongleGraph) -> None:
     bialg_simp(dg)
     id_simp(dg)
 
-    pass
-
 def _assert_circuit_equality(g: BaseGraph, dg: DongleGraph, verbosity_level) -> None:
-    g_tensor = zx.tensorfy(g, preserve_scalar=False)
-
     dg_cp = dg.clone(DongleGraph())
     dg_cp.realise_all_targets()
     dg_cp.reassign_dongle_positions()
@@ -31,9 +27,8 @@ def _assert_circuit_equality(g: BaseGraph, dg: DongleGraph, verbosity_level) -> 
     _dongle_simp(dg_cp)
     if verbosity_level > 1:
         print(f"Reduced dongle graph from {num_v}:{num_e} to {dg_cp.num_vertices()}:{dg_cp.num_edges()}")
-    dg_tensor = zx.tensorfy(dg_cp, preserve_scalar=False)
 
-    assert compare_tensors(g_tensor, dg_tensor, preserve_scalar=False)
+    assert compare_tensors(g, dg_cp, preserve_scalar=False)
 
 @pytest.mark.parametrize("qubits,depth", [(2, 2), (4, 5)])
 def test_cnot(qubits, depth, verbosity_level):
