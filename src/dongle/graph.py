@@ -93,7 +93,7 @@ class DongleGraph(GraphS):
         self.add_edge((spawn, dist), edgetype=EdgeType.SIMPLE)
 
         _id = self._dongle_id_index
-        dongle = Dongle(_id, graph=self, spawn=spawn, dist=dist, targets=[])
+        dongle = Dongle(_id, spawn=spawn, dist=dist, targets=[])
         self._dongles[_id] = dongle
         self._dongle_id_index += 1
 
