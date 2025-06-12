@@ -1,4 +1,5 @@
 lib/pyzx
+latex
 
 # PyPa
 src/pyzx_dongles.egg-info
@@ -9,5 +10,5 @@ src/pyzx_dongles.egg-info
 # Jupyter
 .ipynb_checkpoints
 
-# Latex
+# Misc
 out
