@@ -91,7 +91,7 @@ class AdjPauliWeb:
 
     @staticmethod
     def from_regular_web(web: PauliWeb) -> 'AdjPauliWeb':
-        if not isinstance(web.g.clone(), GraphS):
+        if not isinstance(web.g, GraphS):
             raise ValueError("Given web has to be associated with a GraphS graph!")
 
         adj_web = AdjPauliWeb({ v: d.copy() for v, d in web.g.graph.items() })
