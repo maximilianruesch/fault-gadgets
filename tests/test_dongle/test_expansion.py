@@ -1,5 +1,6 @@
 import pytest
 
+from conftest import longrun
 from pyzx.graph.base import BaseGraph
 from pyzx.hsimplify import from_hypergraph_form
 
@@ -69,7 +70,7 @@ def test_clifford(qubits, depth, verbosity_level):
 
     _assert_graph_equality(g, dg, verbosity_level=verbosity_level)
 
-@pytest.mark.slow
+@longrun
 @pytest.mark.parametrize("qubits,depth", [(10, 50)])
 def test_clifford_huge(qubits, depth, verbosity_level):
     g = zx.generate.cliffords(qubits, depth)
