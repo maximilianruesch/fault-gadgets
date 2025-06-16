@@ -1,11 +1,11 @@
-from .graph import DongleGraph
-from .pauli_web import AdjPauliWeb
 from .dongles import DongleTargetType
-from .web_compute import compute_webs_for_dongles
+from .graph import DongleGraph
+from .web import PauliWeb
+from .dongle_web_compute import compute_webs_for_dongles
 from pyzx import VertexType
 
 
-def _ignore_dongle_internals(g: DongleGraph, web: AdjPauliWeb) -> AdjPauliWeb:
+def _ignore_dongle_internals(g: DongleGraph, web: PauliWeb) -> PauliWeb:
     new_web = web.copy()
     for dongle in g.dongles().values():
         new_web.es.pop((dongle.spawn, dongle.dist), '')
@@ -19,7 +19,7 @@ def _ignore_dongle_internals(g: DongleGraph, web: AdjPauliWeb) -> AdjPauliWeb:
 
     return new_web
 
-def fire_web_onto_dongle(g: DongleGraph, dongle_id: int, web: AdjPauliWeb, quiet: bool = True) -> None:
+def fire_web_onto_dongle(g: DongleGraph, dongle_id: int, web: PauliWeb, quiet: bool = True) -> None:
     new_web = _ignore_dongle_internals(g, web)
     for edge, pauli in new_web.half_edges().items():
         if g.type(edge[0]) == VertexType.BOUNDARY:

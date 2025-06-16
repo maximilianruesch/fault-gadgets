@@ -1,8 +1,6 @@
 from enum import StrEnum
 from typing import List, NamedTuple
 
-from pyzx.graph.graph_s import GraphS
-
 class DongleTargetType(StrEnum):
     X = "X"
     Z = "Z"

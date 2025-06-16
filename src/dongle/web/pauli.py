@@ -1,10 +1,7 @@
 from enum import StrEnum
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
-from .util import ET
-from pyzx.graph.graph_s import GraphS
-from pyzx.pauliweb import PauliWeb
-
+ET = Tuple[int, int]
 
 class Pauli(StrEnum):
     I = "I"
@@ -33,44 +30,34 @@ class Pauli(StrEnum):
         else:
             return Pauli.X if x_flip else Pauli.I
 
-class AdjPauliWeb:
+
+class PauliWeb:
     """
-    A curated version of pyzx.pauliweb.PauliWeb with additional helper functions to modify the
-    underlying graph adjacency as you go.
+    A curated version of pyzx.pauliweb.PauliWeb with additional helper functions.
     """
-    def __init__(self, adj: Dict[int,Dict[int,any]]):
-        self.adj = adj
+    def __init__(self):
         self.es: Dict[ET, Pauli] = dict()
 
     def __getitem__(self, key: ET) -> Pauli:
         return self.es.get(key, Pauli.I)
 
-    def copy(self) -> 'AdjPauliWeb':
-        pw = AdjPauliWeb({ v: d.copy() for v, d in self.adj.items() })
+    def copy(self) -> 'PauliWeb':
+        pw = PauliWeb()
         pw.es = self.es.copy()
         return pw
 
-    def neighbors(self, v: int):
-        return self.adj[v].keys()
-
     def add_half_edge(self, v_pair: ET, pauli: Pauli):
         p = self.es.get(v_pair, Pauli.I) * pauli
-        if p == Pauli.I:
-            self.es.pop(v_pair,'')
-        else:
-            self.es[v_pair] = p
+        if p == Pauli.I: self.es.pop(v_pair,'')
+        else: self.es[v_pair] = p
 
     def add_edge(self, v_pair: ET, pauli: Pauli):
         s, t = v_pair
-        self.adj[s][t] = True
-        self.adj[t][s] = True
         self.add_half_edge((s,t), pauli)
         self.add_half_edge((t,s), pauli)
 
     def remove_edges(self, v_pairs: List[ET]):
         for s, t in v_pairs:
-            del self.adj[s][t]
-            del self.adj[t][s]
             self.es.pop((s, t), '')
             self.es.pop((t, s), '')
 
@@ -83,24 +70,8 @@ class AdjPauliWeb:
     def __repr__(self):
         return 'PauliWeb' + str(self.vertices())
 
-    def __mul__(self, other: 'AdjPauliWeb'):
+    def __mul__(self, other: 'PauliWeb'):
         pw = self.copy()
         for e,p in other.es.items():
             pw.add_half_edge(e, p)
         return pw
-
-    @staticmethod
-    def from_regular_web(web: PauliWeb) -> 'AdjPauliWeb':
-        if not isinstance(web.g, GraphS):
-            raise ValueError("Given web has to be associated with a GraphS graph!")
-
-        adj_web = AdjPauliWeb({ v: d.copy() for v, d in web.g.graph.items() })
-        adj_web.es = {k: Pauli(v) for k, v in web.es.items()}
-
-        return adj_web
-
-    def to_regular_web(self, g) -> PauliWeb:
-        web = PauliWeb(g)
-        web.es = { k: v.name for k,v in self.es.items() }
-
-        return web
