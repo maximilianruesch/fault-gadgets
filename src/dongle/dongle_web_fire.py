@@ -1,40 +1,20 @@
 from .dongles import DongleTargetType
 from .graph import DongleGraph
-from .web import PauliWeb
-from .dongle_web_compute import compute_webs_for_dongles
+from .web import Pauli
+from .dongle_web_compute import compute_webs_for_dongles, DonglePauliWeb
 from pyzx import VertexType
 
-
-def _ignore_dongle_internals(g: DongleGraph, web: PauliWeb) -> PauliWeb:
-    new_web = web.copy()
-    for dongle in g.dongles().values():
-        new_web.es.pop((dongle.spawn, dongle.dist), '')
-        new_web.es.pop((dongle.dist, dongle.spawn), '')
-
-        for target in dongle.targets:
-            new_web.es.pop((dongle.dist, target.id), '')
-            for edge in web.es.keys():
-                if edge[0] == target.id:
-                    new_web.es.pop(edge, '')
-
-    return new_web
-
-def fire_web_onto_dongle(g: DongleGraph, dongle_id: int, web: PauliWeb, quiet: bool = True) -> None:
-    new_web = _ignore_dongle_internals(g, web)
-    for edge, pauli in new_web.half_edges().items():
+def fire_web_onto_dongle(g: DongleGraph, dongle_id: int, web: DonglePauliWeb, quiet: bool = True) -> None:
+    for edge, pauli in web.meta_half_edges.items():
         if g.type(edge[0]) == VertexType.BOUNDARY:
             continue
 
-        new_edge = g._on_edge.get(edge[0]) or g._on_edge.get(edge[1]) or edge
-        if pauli == 'X' or pauli == 'Y':
-            if not quiet:
-                print(f"Firing X onto {new_edge} for dongle #{dongle_id} (from web edge: {edge})")
-            g.add_target(DongleTargetType.X, dongle_id=dongle_id, edge=new_edge)
-        elif pauli == 'Z' or pauli == 'Y':
-            if not quiet:
-                print(f"Firing Z onto {new_edge} for dongle #{dongle_id} (from web edge: {edge})")
-            g.add_target(DongleTargetType.Z, dongle_id=dongle_id, edge=new_edge)
-
+        if pauli == Pauli.X or pauli == Pauli.Y:
+            if not quiet: print(f"Firing X onto {edge} for dongle #{dongle_id} (from web edge: {edge})")
+            g.add_target(DongleTargetType.X, dongle_id=dongle_id, edge=edge)
+        elif pauli == Pauli.Z or pauli == Pauli.Y:
+            if not quiet: print(f"Firing Z onto {edge} for dongle #{dongle_id} (from web edge: {edge})")
+            g.add_target(DongleTargetType.Z, dongle_id=dongle_id, edge=edge)
 
 def expand_all_dongles(g: DongleGraph, quiet: bool = True) -> None:
     if not quiet:

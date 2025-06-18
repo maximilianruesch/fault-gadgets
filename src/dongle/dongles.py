@@ -20,18 +20,16 @@ class DongleTarget(NamedTuple):
 
 class Dongle(NamedTuple):
     id: int
-    spawn: int
-    dist: int
     targets: List[DongleTarget]
 
     def copy(self) -> 'Dongle':
-        return Dongle(self.id, self.spawn, self.dist, [t._replace() for t in self.targets])
+        return Dongle(self.id, self.targets.copy())
 
     def __repr__(self):
         return self.__str__()
 
     def __str__(self) -> str:
-        return f"Dongle#{self.id}({self.spawn}, {self.dist}, {self.targets})"
+        return f"Dongle#{self.id}({self.targets})"
 
     def __hash__(self):
         return hash(f"Dongle#{self.id}")

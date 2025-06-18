@@ -17,7 +17,7 @@ def compute_webs(graph: GraphS) -> List[PauliWeb]:
     # Compute span of space of valid firing assignments
     sols = m_d.nullspace()
     webs = list(map(lambda v: convert_firing_assignment_to_web(g, ordering, v), sols))
-    for web in webs: additional_nodes.remove_from(web)
+    for web in webs: additional_nodes.remove_from(g, web)
 
     return webs
 
@@ -39,6 +39,6 @@ def compute_detecting_regions(graph: GraphS) -> List[PauliWeb]:
 
     region_sols = (Mat2(boundary_nullspace_vectors) * sol_basis.transpose()).data
     webs = list(map(lambda v: convert_firing_assignment_to_web(g, ordering, v), region_sols))
-    for web in webs: additional_nodes.remove_from(web)
+    for web in webs: additional_nodes.remove_from(g, web)
 
     return webs
