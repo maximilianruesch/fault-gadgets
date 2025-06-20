@@ -17,10 +17,21 @@ def dongle_simp(g: GraphS, nodes: Nodes) -> None:
 
     zx.id_simp(g)
 
+def sink_simp(g: GraphS, nodes: Nodes) -> None:
+    matches = [(gate, end) for gate, end in nodes.sinks.values()]
+    etab, rem_vertices, rem_edges, check_isolated_vertices = zx.rules.spider(g, matches)
+    g.add_edge_table(etab)
+    g.remove_edges(rem_edges)
+    g.remove_vertices(rem_vertices)
+    if check_isolated_vertices: g.remove_isolated_vertices()
+
+    zx.id_simp(g)
+
 def assert_dongle_graph_equality(g: BaseGraph, dg: DongleGraph, strict: bool = True) -> None:
     dg_cp, nodes = dg.realise()
     from_hypergraph_form(dg_cp)
     dongle_simp(dg_cp, nodes)
+    sink_simp(dg_cp, nodes)
 
     assert_graph_equality(g, dg_cp, strict=strict)
 

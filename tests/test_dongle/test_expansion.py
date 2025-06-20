@@ -1,9 +1,12 @@
+import pytest
+
+from dongle.graph_helpers import add_all_dongles, add_sinks_for_all_detecting_regions
 from pyzx.graph.graph_s import GraphS
 import pyzx as zx
 
-from dongle import expand_all_dongles, DongleGraph
+from dongle import expand_all_dongles, DongleGraph, generate
 
-from test_dongle.util import assert_graph_equality, dongle_simp
+from test_dongle.util import assert_graph_equality, dongle_simp, assert_dongle_graph_equality
 
 def test_hbox():
     g = GraphS()
@@ -21,3 +24,14 @@ def test_hbox():
     dongle_simp(g2, nodes)
 
     assert_graph_equality(g, dg)
+
+@pytest.mark.parametrize("qubits,depth", [(2, 2), (3, 3), (4, 7)])
+def test_zweb(qubits, depth):
+    g = generate.zweb(qubits, depth)
+
+    dg = DongleGraph.from_graph(g)
+    add_sinks_for_all_detecting_regions(dg)
+    add_all_dongles(dg)
+    expand_all_dongles(dg)
+
+    assert_dongle_graph_equality(g, dg)

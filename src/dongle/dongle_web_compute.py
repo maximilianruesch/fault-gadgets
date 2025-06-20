@@ -3,6 +3,7 @@ from typing import Mapping, Iterable, NamedTuple, Dict, Tuple, List
 import numpy as np
 
 from pyzx import Mat2, VertexType
+from . import SinkType
 from .web import PauliWeb, to_red_green_graphlike, determine_ordering, create_firing_verification, \
     convert_firing_assignment_to_web, Pauli
 from .graph import DongleGraph, Nodes
@@ -13,6 +14,8 @@ class DonglePauliWeb(NamedTuple):
     meta_half_edges: Dict[ET, Pauli]
     z_dongle: int
     x_dongles: List[int]
+    z_sinks: List[int]
+    x_sinks: List[int]
 
     def __getitem__(self, key: ET) -> Pauli:
         return self.meta_half_edges.get(key, Pauli.I)
@@ -28,6 +31,8 @@ class DonglePauliWeb(NamedTuple):
         es = web.es.copy()
         z_dongle = None
         x_dongles = []
+        z_sinks = []
+        x_sinks = []
 
         for dongle_id, dongle_nodes in nodes.dongles.items():
             spawn_dist_pauli = es.pop((dongle_nodes.spawn, dongle_nodes.dist), '')
@@ -44,8 +49,18 @@ class DonglePauliWeb(NamedTuple):
                 es.pop((dongle_nodes.dist, node), '')
                 es.pop((node, dongle_nodes.dist), '')
 
-        for edge, target_nodes in nodes.targets_by_edge.items():
-            nodes_on_edge = [edge[0]] + target_nodes + [edge[1]]
+        for sink_id, sink_nodes in nodes.sinks.items():
+            sink_pauli = es.pop((sink_nodes.end, sink_nodes.gate), '')
+            es.pop((sink_nodes.gate, sink_nodes.end), '')
+            if sink_pauli == Pauli.Z:
+                z_sinks.append(sink_id)
+            elif sink_pauli == Pauli.X:
+                x_sinks.append(sink_id)
+            elif validate and sink_pauli == Pauli.Y:
+                raise RuntimeError(f"Y-highlight in sink {sink_id} detected!")
+
+        for edge, extra_nodes in nodes.extra_nodes_by_edge.items():
+            nodes_on_edge = [edge[0]] + extra_nodes + [edge[1]]
 
             lr_edge = None
             if (nodes_on_edge[0], nodes_on_edge[1]) in es:
@@ -64,7 +79,7 @@ class DonglePauliWeb(NamedTuple):
         if validate and z_dongle in x_dongles:
             raise AssertionError("The dongle of this web may not be highlighted red!")
 
-        return DonglePauliWeb(es, z_dongle, x_dongles)
+        return DonglePauliWeb(es, z_dongle, x_dongles, z_sinks, x_sinks)
 
 def compute_web_for_dongle(graph: DongleGraph, dongle_id: int) -> DonglePauliWeb:
     return compute_webs_for_dongles(graph, [dongle_id])[dongle_id]
@@ -80,6 +95,9 @@ def compute_webs_for_dongles(graph: DongleGraph, dongle_ids: Iterable[int]) -> M
     for spawn in dongle_spawns:
         g.set_type(spawn, VertexType.BOUNDARY)
 
+    for sink_nodes in nodes.sinks.values():
+        g.set_type(sink_nodes.end, VertexType.BOUNDARY)
+
     # Computing all webs of all dongles
     additional_nodes = to_red_green_graphlike(g)
     ordering = determine_ordering(g)
@@ -93,6 +111,9 @@ def compute_webs_for_dongles(graph: DongleGraph, dongle_ids: Iterable[int]) -> M
     spawn_restricted_basis = []
     for spawn in dongle_spawns:
         spawn_restricted_basis.append(sols_basis.data[ordering.ord(list(g.neighbors(spawn))[0])])
+    for sink_id, sink in graph.sinks().items():
+        offset = 0 if sink.type == SinkType.X else len(ordering.z_boundaries)
+        spawn_restricted_basis.append(sols_basis.data[ordering.ord(list(g.neighbors(nodes.sinks[sink_id].end))[0]) + offset])
     spawn_restricted_basis.append([])
 
     webs = dict()
@@ -102,7 +123,7 @@ def compute_webs_for_dongles(graph: DongleGraph, dongle_ids: Iterable[int]) -> M
         x_constraint_index = ordering.ord(list(g.neighbors(spawn))[0]) + len(ordering.z_boundaries)
         spawn_restricted_basis[-1] = sols_basis.data[x_constraint_index]
 
-        b = Mat2.unit_vector(len(dongle_spawns) + 1, dongle_spawns.index(spawn))
+        b = Mat2.unit_vector(len(dongle_spawns) + len(graph.sinks()) + 1, dongle_spawns.index(spawn))
         basis_sol = Mat2(spawn_restricted_basis).solve(b)
         if basis_sol is None:
            raise AssertionError(f"No valid assignment in basis found for dongle ID {dongle_id}!")

@@ -1,6 +1,7 @@
 import pytest
 
 from conftest import longrun
+from dongle.graph_helpers import add_all_dongles
 
 from pyzx.editor_actions import match_hadamard_edge
 from pyzx.hrules import had_edge_to_hbox
@@ -14,7 +15,7 @@ def test_cnot(qubits, depth):
     zx.id_simp(g)
 
     dg = DongleGraph.from_graph(g)
-    dg.add_all_dongles()
+    add_all_dongles(dg)
     expand_all_dongles(dg)
 
     assert_dongle_graph_equality(g, dg)
@@ -27,7 +28,7 @@ def test_clifford(qubits, depth):
     dg = DongleGraph.from_graph(g)
     for e in match_hadamard_edge(dg):
         had_edge_to_hbox(dg, e)
-    dg.add_all_dongles()
+    add_all_dongles(dg)
     expand_all_dongles(dg)
 
     assert_dongle_graph_equality(g, dg)
@@ -41,7 +42,7 @@ def test_clifford_huge(qubits, depth):
     dg = DongleGraph.from_graph(g)
     for e in match_hadamard_edge(dg):
         had_edge_to_hbox(dg, e)
-    dg.add_all_dongles()
+    add_all_dongles(dg)
     expand_all_dongles(dg)
 
     assert_dongle_graph_equality(g, dg)

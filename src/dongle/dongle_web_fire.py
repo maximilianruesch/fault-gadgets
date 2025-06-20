@@ -11,10 +11,17 @@ def fire_web_onto_dongle(g: DongleGraph, dongle_id: int, web: DonglePauliWeb, qu
 
         if pauli == Pauli.X or pauli == Pauli.Y:
             if not quiet: print(f"Firing X onto {edge} for dongle #{dongle_id} (from web edge: {edge})")
-            g.add_target(DongleTargetType.X, dongle_id=dongle_id, edge=edge)
+            g.add_target_on_edge(DongleTargetType.X, dongle_id=dongle_id, edge=edge)
         elif pauli == Pauli.Z or pauli == Pauli.Y:
             if not quiet: print(f"Firing Z onto {edge} for dongle #{dongle_id} (from web edge: {edge})")
-            g.add_target(DongleTargetType.Z, dongle_id=dongle_id, edge=edge)
+            g.add_target_on_edge(DongleTargetType.Z, dongle_id=dongle_id, edge=edge)
+
+    for sink_id in web.z_sinks:
+        if not quiet: print(f"Firing Z into sink {sink_id} for dongle #{dongle_id}")
+        g.add_target_in_sink(DongleTargetType.Z, dongle_id=dongle_id, sink_id=sink_id)
+    for sink_id in web.x_sinks:
+        if not quiet: print(f"Firing X into sink {sink_id} for dongle #{dongle_id}")
+        g.add_target_in_sink(DongleTargetType.X, dongle_id=dongle_id, sink_id=sink_id)
 
 def expand_all_dongles(g: DongleGraph, quiet: bool = True) -> None:
     if not quiet:
