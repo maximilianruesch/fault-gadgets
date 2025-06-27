@@ -4,7 +4,8 @@ from faultgadget.graph_helpers import add_all_gadgets, add_sinks_for_all_detecti
 from pyzx.graph.graph_s import GraphS
 import pyzx as zx
 
-from faultgadget import expand_all_gadgets, GadgetGraph, generate
+from faultgadget import expand_all_gadgets, GadgetGraph
+import generate
 
 from test_gadget.util import assert_graph_equality, gadget_simp, assert_gadget_graph_equality
 

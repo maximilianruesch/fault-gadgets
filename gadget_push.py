@@ -1,4 +1,5 @@
-from faultgadget import GadgetGraph, generate, add_sinks_for_all_detecting_regions, add_all_gadgets, compute_webs_for_gadgets
+from faultgadget import GadgetGraph, add_sinks_for_all_detecting_regions, add_all_gadgets, compute_webs_for_gadgets
+import generate
 
 def main():
 
