@@ -1,6 +1,7 @@
 from typing import Mapping, Iterable, NamedTuple, Dict, Tuple, List
 
 import numpy as np
+from galois import GF2
 
 from pyzx import Mat2, VertexType
 from . import SinkType
@@ -102,8 +103,9 @@ def compute_webs_for_gadgets(graph: GadgetGraph, gadget_ids: Iterable[int]) -> M
     additional_nodes = to_red_green_graphlike(g)
     ordering = determine_ordering(g)
 
-    m_d = create_firing_verification(g, ordering)
-    sols_basis = Mat2(m_d.nullspace()).transpose()
+    m_d = GF2(create_firing_verification(g, ordering).data)
+    sols_basis_galois = m_d.null_space().transpose()
+    sols_basis = Mat2(sols_basis_galois.tolist())
 
     # A restriction of the solution basis focused on the entries for Z-edges on gadget spawns.
     # Contains one additional entry for restricting X-edges on the gadget to be analyzed.
