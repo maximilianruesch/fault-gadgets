@@ -1,12 +1,12 @@
 import pytest
 
-from dongle.graph_helpers import add_all_dongles, add_sinks_for_all_detecting_regions
+from faultgadget.graph_helpers import add_all_gadgets, add_sinks_for_all_detecting_regions
 from pyzx.graph.graph_s import GraphS
 import pyzx as zx
 
-from dongle import expand_all_dongles, DongleGraph, generate
+from faultgadget import expand_all_gadgets, GadgetGraph, generate
 
-from test_dongle.util import assert_graph_equality, dongle_simp, assert_dongle_graph_equality
+from test_gadget.util import assert_graph_equality, gadget_simp, assert_gadget_graph_equality
 
 def test_hbox():
     g = GraphS()
@@ -15,13 +15,13 @@ def test_hbox():
     b2 = g.add_vertex(zx.VertexType.BOUNDARY, qubit=0, row=4)
     g.add_edges([(b1, h), (h, b2)])
 
-    dg = DongleGraph.from_graph(g)
-    dg.add_dongle(types=['X'], edge=(b1, h))
-    dg.add_dongle(types=['X'], edge=(h, b2))
-    expand_all_dongles(dg)
+    dg = GadgetGraph.from_graph(g)
+    dg.add_gadget(types=['X'], edge=(b1, h))
+    dg.add_gadget(types=['X'], edge=(h, b2))
+    expand_all_gadgets(dg)
 
     g2, nodes = dg.realise()
-    dongle_simp(g2, nodes)
+    gadget_simp(g2, nodes)
 
     assert_graph_equality(g, dg)
 
@@ -29,9 +29,9 @@ def test_hbox():
 def test_zweb(qubits, depth):
     g = generate.zweb(qubits, depth)
 
-    dg = DongleGraph.from_graph(g)
+    dg = GadgetGraph.from_graph(g)
     add_sinks_for_all_detecting_regions(dg)
-    add_all_dongles(dg)
-    expand_all_dongles(dg)
+    add_all_gadgets(dg)
+    expand_all_gadgets(dg)
 
-    assert_dongle_graph_equality(g, dg)
+    assert_gadget_graph_equality(g, dg)

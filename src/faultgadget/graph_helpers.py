@@ -3,25 +3,25 @@ from typing import Tuple, List, Mapping
 from pyzx import VertexType
 from .sink import SinkType
 from .web import PauliWeb, Pauli, compute_detecting_regions
-from .graph import DongleGraph
+from .graph import GadgetGraph
 
 ET = Tuple[int, int]
 
-def add_all_dongles(dg: DongleGraph) -> Mapping[ET, Tuple[int, int, int]]:
-    edge_to_dongle_ids = dict()
+def add_all_gadgets(dg: GadgetGraph) -> Mapping[ET, Tuple[int, int, int]]:
+    edge_to_gadget_ids = dict()
     for edge in list(dg.edges()):
-        # Dongles on inputs and outputs do not change for rewrites, thus skip
+        # Gadgets on inputs and outputs do not change for rewrites, thus skip
         if dg.type(edge[0]) is VertexType.BOUNDARY or dg.type(edge[0]) is VertexType.BOUNDARY:
             continue
 
-        edge_to_dongle_ids[edge] = dg.add_dongles(edge)
+        edge_to_gadget_ids[edge] = dg.add_edge_flip_gadgets(edge)
 
-    return edge_to_dongle_ids
+    return edge_to_gadget_ids
 
-def add_sinks_for_all_detecting_regions(dg: DongleGraph) -> None:
+def add_sinks_for_all_detecting_regions(dg: GadgetGraph) -> None:
     add_sinks_for_regions(dg, compute_detecting_regions(dg))
 
-def add_sinks_for_regions(dg: DongleGraph, regions: List[PauliWeb]) -> None:
+def add_sinks_for_regions(dg: GadgetGraph, regions: List[PauliWeb]) -> None:
     web_index_by_z_edge = dict()
     web_index_by_x_edge = dict()
     for idx, web in enumerate(regions):

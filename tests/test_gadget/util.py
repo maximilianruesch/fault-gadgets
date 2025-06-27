@@ -1,13 +1,13 @@
-from dongle.graph import Nodes, DongleGraph
+from faultgadget.graph import Nodes, GadgetGraph
 from pyzx.graph.base import BaseGraph
 from pyzx.graph.graph_s import GraphS
 from pyzx.hsimplify import from_hypergraph_form
 import pyzx as zx
 
-def dongle_simp(g: GraphS, nodes: Nodes) -> None:
+def gadget_simp(g: GraphS, nodes: Nodes) -> None:
     matches = [
-        (dongle_nodes.spawn, dongle_nodes.dist, [], nodes.targets[dongle_id])
-        for dongle_id, dongle_nodes in nodes.dongles.items()
+        (gadget_nodes.spawn, gadget_nodes.dist, [], nodes.targets[gadget_id])
+        for gadget_id, gadget_nodes in nodes.gadgets.items()
     ]
     etab, rem_vertices, rem_edges, check_isolated_vertices = zx.rules.bialg(g, matches)
     g.add_edge_table(etab)
@@ -27,10 +27,10 @@ def sink_simp(g: GraphS, nodes: Nodes) -> None:
 
     zx.id_simp(g)
 
-def assert_dongle_graph_equality(g: BaseGraph, dg: DongleGraph, strict: bool = True) -> None:
+def assert_gadget_graph_equality(g: BaseGraph, dg: GadgetGraph, strict: bool = True) -> None:
     dg_cp, nodes = dg.realise()
     from_hypergraph_form(dg_cp)
-    dongle_simp(dg_cp, nodes)
+    gadget_simp(dg_cp, nodes)
     sink_simp(dg_cp, nodes)
 
     assert_graph_equality(g, dg_cp, strict=strict)

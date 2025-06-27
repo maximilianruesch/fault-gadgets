@@ -6,18 +6,18 @@ from pyzx.hrules import had_edge_to_hbox
 
 random.seed(50)
 
-from dongle import expand_all_dongles, DongleGraph
+from faultgadget import expand_all_gadgets, GadgetGraph, add_all_gadgets
 import pyzx as zx
 
-def _expand(g: DongleGraph):
-    expand_all_dongles(g)
+def _expand(g: GadgetGraph):
+    expand_all_gadgets(g)
 
 def run_cnot():
     g = zx.generate.cnots(4, 5)
     zx.id_simp(g)
 
-    bg = DongleGraph.from_graph(g)
-    bg.add_all_dongles()
+    bg = GadgetGraph.from_graph(g)
+    add_all_gadgets(bg)
 
     print(timeit(lambda: _expand(bg), globals=globals(), number=1))
 
@@ -28,8 +28,8 @@ def run_clifford():
     for e in match_hadamard_edge(g):
         had_edge_to_hbox(g, e)
 
-    bg = DongleGraph.from_graph(g)
-    bg.add_all_dongles()
+    bg = GadgetGraph.from_graph(g)
+    add_all_gadgets(bg)
 
     print(timeit(lambda: _expand(bg), globals=globals(), number=1))
 

@@ -2,7 +2,7 @@ import math
 from typing import Tuple, Dict, Iterable, Literal, List, Optional, NamedTuple
 
 from pyzx.graph.base import upair
-from .dongles import Dongle, DongleTarget, DongleTargetType
+from .gadget import Gadget, Target, TargetType
 from .sink import Sink, SinkType
 from pyzx import EdgeType, VertexType
 from pyzx.graph.graph_s import GraphS
@@ -10,7 +10,7 @@ from pyzx.graph.graph_s import GraphS
 ET = Tuple[int, int]
 
 class Nodes:
-    class DongleNodes(NamedTuple):
+    class GadgetNodes(NamedTuple):
         spawn: int
         dist: int
 
@@ -18,28 +18,28 @@ class Nodes:
         gate: int
         end: int
 
-    dongles: Dict[int, DongleNodes] # dongle ID -> (spawn node, dist node)
-    targets: Dict[int, List[int]] # dongle ID -> target node
+    gadgets: Dict[int, GadgetNodes] # gadget ID -> (spawn node, dist node)
+    targets: Dict[int, List[int]] # gadget ID -> target node
     extra_nodes_by_edge: Dict[ET, List[int]] # edge -> extra nodes like targets and sinks
     sinks: Dict[int, SinkNodes] # sink ID -> (gate node, end node)
     sinks_by_edge: Dict[ET, int] # edge -> gate node
 
     def __init__(self):
-        self.dongles = dict()
+        self.gadgets = dict()
         self.targets = dict()
         self.extra_nodes_by_edge = dict()
         self.sinks = dict()
         self.sinks_by_edge = dict()
 
-class DongleGraph(GraphS):
+class GadgetGraph(GraphS):
     def __init__(self) -> None:
         GraphS.__init__(self)
-        self._dongle_id_index = 0 # Counter which ID to assign to next dongle
-        self._dongles: Dict[int, Dongle] = dict() # dongle ID -> dongle
+        self._gadget_id_index = 0 # Counter which ID to assign to next gadget
+        self._gadgets: Dict[int, Gadget] = dict() # gadget ID -> gadget
 
         self._target_id_index = 0 # Counter which ID to assign to next target
-        self._targets: Dict[int, DongleTarget] = dict() # target ID -> target
-        self._in_dongle: Dict[int, int] = dict() # target ID -> dongle ID
+        self._targets: Dict[int, Target] = dict() # target ID -> target
+        self._in_gadget: Dict[int, int] = dict() # target ID -> gadget ID
         self._on_edge: Dict[int, ET] = dict() # target ID -> edge the target is on
         self._targets_by_edge: Dict[ET, List[int]] = dict() # edge -> target ID
 
@@ -49,14 +49,14 @@ class DongleGraph(GraphS):
         self._sinks_by_edge: Dict[ET, int] = dict() # edge -> sink ID
         self._in_sink: Dict[int, int] = dict() # target ID -> sink ID
 
-    def clone(self, instance: Optional['DongleGraph'] = None) -> 'DongleGraph':
+    def clone(self, instance: Optional['GadgetGraph'] = None) -> 'GadgetGraph':
         cpy = GraphS.clone(self, instance)
-        cpy._dongle_id_index = self._dongle_id_index
-        cpy._dongles = { _id: dongle.copy() for _id, dongle in self._dongles.items() }
+        cpy._gadget_id_index = self._gadget_id_index
+        cpy._gadgets = {_id: gadget.copy() for _id, gadget in self._gadgets.items()}
 
         cpy._target_id_index = self._target_id_index
         cpy._targets = self._targets.copy()
-        cpy._in_dongle = self._in_dongle.copy()
+        cpy._in_gadget = self._in_gadget.copy()
         cpy._on_edge = self._on_edge.copy()
         cpy._targets_by_edge = { edge: targets.copy() for edge, targets in self._targets_by_edge.items() }
 
@@ -69,110 +69,108 @@ class DongleGraph(GraphS):
         return cpy
 
     @staticmethod
-    def from_graph(graph: GraphS) -> 'DongleGraph':
+    def from_graph(graph: GraphS) -> 'GadgetGraph':
         """
-        Assumes that the given graph has no dongle information attached.
-        If a graph with dongles needs to be copied, use `clone` instead.
+        Assumes that the given graph has no gadget information attached.
+        If a graph with gadgets needs to be copied, use `clone` instead.
         """
-        return graph.clone(DongleGraph())
+        return graph.clone(GadgetGraph())
 
     ###########################################################
-    #                        Dongles                          #
+    #                        Gadgets                          #
     ###########################################################
 
-    def dongles(self) -> Dict[int, Dongle]:
-        return self._dongles
+    def gadgets(self) -> Dict[int, Gadget]:
+        return self._gadgets
 
-    def add_dongles(self, edge: ET) -> Tuple[int, int, int]:
-        return (self.add_dongle(types=['X'], edge=edge),
-                self.add_dongle(types=['Z'], edge=edge),
-                self.add_dongle(types=['Y'], edge=edge))
+    def add_edge_flip_gadgets(self, edge: ET) -> Tuple[int, int, int]:
+        return (self.add_gadget(types=['X'], edge=edge),
+                self.add_gadget(types=['Z'], edge=edge),
+                self.add_gadget(types=['Y'], edge=edge))
 
-    def add_dongle(self, types: Iterable[Literal['X', 'Y', 'Z']], edge: ET) -> int:
+    def add_gadget(self, types: Iterable[Literal['X', 'Y', 'Z']], edge: ET) -> int:
         if self.edge_type(edge) == 0:
             raise ValueError('Edge to convert is not in graph!')
         elif not self.edge_type(edge) == EdgeType.SIMPLE:
             raise ValueError('Edge to convert must be a simple edge!')
 
-        _id = self._dongle_id_index
-        dongle = Dongle(_id, targets=[])
-        self._dongles[_id] = dongle
-        self._dongle_id_index += 1
+        _id = self._gadget_id_index
+        self._gadgets[_id] = Gadget(_id, targets=[])
+        self._gadget_id_index += 1
 
         for target_type in types:
             if target_type == 'X' or target_type == 'Y':
-                self.add_target_on_edge(DongleTargetType.X, dongle_id=_id, edge=edge)
+                self.add_target_on_edge(TargetType.X, gadget_id=_id, edge=edge)
             if target_type == 'Z' or target_type == 'Y':
-                self.add_target_on_edge(DongleTargetType.Z, dongle_id=_id, edge=edge)
+                self.add_target_on_edge(TargetType.Z, gadget_id=_id, edge=edge)
 
         return _id
 
-    def add_target_on_edge(self, _type: DongleTargetType, dongle_id: int, edge: ET) -> DongleTarget:
+    def add_target_on_edge(self, _type: TargetType, gadget_id: int, edge: ET) -> Target:
         if self.edge_type(edge) == 0:
             raise ValueError(f"Cannot add a target to a nonexistent edge: {edge}!")
 
-        _target = self._add_target(_type=_type, dongle_id=dongle_id)
-        self._update_target_edge(target=_target, edge=edge)
+        _target = self._add_target(_type=_type, gadget_id=gadget_id)
+        self._update_target_edge(_target.id, edge=edge)
 
         return _target
 
-    def _add_target(self, _type: DongleTargetType, dongle_id: int) -> DongleTarget:
+    def _add_target(self, _type: TargetType, gadget_id: int) -> Target:
         _id = self._target_id_index
-        _target = DongleTarget(id=_id, type=_type)
+        _target = Target(id=_id, type=_type)
         self._targets[_id] = _target
         self._target_id_index += 1
 
-        dongle = self._dongles[dongle_id]
-        dongle.targets.append(_target)
-        self._in_dongle[_id] = dongle_id
+        gadget = self._gadgets[gadget_id]
+        gadget.targets.append(_target)
+        self._in_gadget[_id] = gadget_id
 
         return _target
 
-    def _remove_targets(self, targets: Iterable[DongleTarget]) -> None:
+    def _remove_targets(self, targets: Iterable[Target]) -> None:
         for target in targets:
             self._remove_target(target)
 
-    def _remove_target(self, target: DongleTarget) -> None:
+    def _remove_target(self, target: Target) -> None:
         _id = target.id
-        self._update_target_edge(target, edge=None)
+        self._update_target_edge(target.id, edge=None)
 
-        dongle = self._dongles[self._in_dongle[_id]]
-        dongle.targets.remove(target)
-        del self._in_dongle[_id]
-        if len(dongle.targets) == 0:
-            del self._dongles[dongle.id]
+        gadget = self._gadgets[self._in_gadget[_id]]
+        gadget.targets.remove(target)
+        del self._in_gadget[_id]
+        if len(gadget.targets) == 0:
+            del self._gadgets[gadget.id]
         del self._targets[_id]
 
-    def _update_target_edge(self, target: DongleTarget, edge: Optional[ET]) -> None:
-        _id = target.id
-        old_edge = self._on_edge.get(_id)
+    def _update_target_edge(self, target_id: int, edge: Optional[ET]) -> None:
+        old_edge = self._on_edge.get(target_id)
         if old_edge is None and edge is None:
             return
 
         if edge is None:
-            self._targets_by_edge[upair(*old_edge)].remove(_id)
-            del self._on_edge[_id]
+            self._targets_by_edge[upair(*old_edge)].remove(target_id)
+            del self._on_edge[target_id]
         else:
             if old_edge is not None:
-                old_edge = self._on_edge[_id]
-                self._targets_by_edge[upair(*old_edge)].remove(_id)
+                old_edge = self._on_edge[target_id]
+                self._targets_by_edge[upair(*old_edge)].remove(target_id)
             if not self._targets_by_edge.__contains__(upair(*edge)):
                 self._targets_by_edge[upair(*edge)] = []
-            self._targets_by_edge[upair(*edge)].append(_id)
-            self._on_edge[_id] = upair(*edge)
+            self._targets_by_edge[upair(*edge)].append(target_id)
+            self._on_edge[target_id] = upair(*edge)
 
     def merge_targets(self, quiet: bool = True) -> None:
-        for dongle_id in set(self._in_dongle.values()):
-            self.merge_targets_of_dongle(dongle_id, quiet=quiet)
+        for gadget_id in set(self._in_gadget.values()):
+            self.merge_targets_of_gadget(gadget_id, quiet=quiet)
 
-    def merge_targets_of_dongle(self, dongle_id: int, quiet: bool = True) -> None:
-        x_targets_by_edge: Dict[ET, List[DongleTarget]] = dict()
-        z_targets_by_edge: Dict[ET, List[DongleTarget]] = dict()
-        targets_by_sink: Dict[int, List[DongleTarget]] = dict()
-        for target in self._dongles[dongle_id].targets:
+    def merge_targets_of_gadget(self, gadget_id: int, quiet: bool = True) -> None:
+        x_targets_by_edge: Dict[ET, List[Target]] = dict()
+        z_targets_by_edge: Dict[ET, List[Target]] = dict()
+        targets_by_sink: Dict[int, List[Target]] = dict()
+        for target in self._gadgets[gadget_id].targets:
             if target.id in self._on_edge:
                 edge = self._on_edge[target.id]
-                if target.type == DongleTargetType.X:
+                if target.type == TargetType.X:
                     if edge not in x_targets_by_edge: x_targets_by_edge[edge] = []
                     x_targets_by_edge[edge].append(target)
                 else:
@@ -185,20 +183,20 @@ class DongleGraph(GraphS):
             else:
                 raise RuntimeError(f"Target {target.id} is at unknown location!")
 
-        # All X targets from the same dongle on the same edge merge
+        # All X targets from the same gadget on the same edge merge
         for edge, targets in x_targets_by_edge.items():
             if len(targets) % 2 == 1:
                 targets.pop()
             if not quiet and len(targets) > 0:
-                print(f"Reducing {len(targets)} targets of type X from dongle #{dongle_id} on edge {edge}!")
+                print(f"Reducing {len(targets)} targets of type X from gadget #{gadget_id} on edge {edge}!")
             self._remove_targets(targets)
 
-        # All Z targets from the same dongle on the same edge merge
+        # All Z targets from the same gadget on the same edge merge
         for edge, targets in z_targets_by_edge.items():
             if len(targets) % 2 == 1:
                 targets.pop()
             if not quiet and len(targets) > 0:
-                print(f"Reducing {len(targets)} targets of type Z from dongle #{dongle_id} on edge {edge}!")
+                print(f"Reducing {len(targets)} targets of type Z from gadget #{gadget_id} on edge {edge}!")
             self._remove_targets(targets)
 
     ###########################################################
@@ -219,11 +217,11 @@ class DongleGraph(GraphS):
 
         return sink
 
-    def add_target_in_sink(self, _type: DongleTargetType, dongle_id: int, sink_id: int):
+    def add_target_in_sink(self, _type: TargetType, gadget_id: int, sink_id: int):
         if sink_id not in self._sinks:
             raise ValueError(f"Cannot add a target to a nonexistent sink: {sink_id}!")
 
-        _target = self._add_target(_type=_type, dongle_id=dongle_id)
+        _target = self._add_target(_type=_type, gadget_id=gadget_id)
         self._in_sink[_target.id] = sink_id
 
         return _target
@@ -237,13 +235,13 @@ class DongleGraph(GraphS):
         nodes = Nodes()
         target_nodes = dict()
 
-        # Instance dongles and their targets
-        for dongle_id, dongle in self._dongles.items():
+        # Instance gadgets and their targets
+        for gadget_id, gadget in self._gadgets.items():
             spawn, dist = graph.add_vertex(VertexType.Z, qubit=-3), graph.add_vertex(VertexType.X, qubit=-2)
-            nodes.dongles[dongle_id] = Nodes.DongleNodes(spawn, dist)
+            nodes.gadgets[gadget_id] = Nodes.GadgetNodes(spawn, dist)
             graph.add_edge((spawn, dist), edgetype=EdgeType.SIMPLE)
 
-            for target in dongle.targets:
+            for target in gadget.targets:
                 _target_node = graph.add_vertex(VertexType.Z)
                 target_nodes[target.id] = _target_node
                 graph.add_edge((dist, _target_node))
@@ -286,12 +284,12 @@ class DongleGraph(GraphS):
 
             for idx, target_id in enumerate(target_ids):
                 target = self._targets[target_id]
-                _append(idx, is_x_target=target.type == DongleTargetType.X)
+                _append(idx, is_x_target=target.type == TargetType.X)
 
                 # Register neighbours with target node information
-                dongle_id = self._in_dongle[target_id]
-                if dongle_id not in nodes.targets: nodes.targets[dongle_id] = []
-                nodes.targets[dongle_id].append(target_nodes[target_id])
+                gadget_id = self._in_gadget[target_id]
+                if gadget_id not in nodes.targets: nodes.targets[gadget_id] = []
+                nodes.targets[gadget_id].append(target_nodes[target_id])
 
             if edge in self._sinks_by_edge:
                 _append(len(extra_nodes) - 1, is_x_target=False)
@@ -302,12 +300,12 @@ class DongleGraph(GraphS):
             graph.add_edge_table(etab)
             nodes.extra_nodes_by_edge[edge] = extra_nodes
 
-        # Adjust dongle positions
-        for dongle in self._dongles.values():
-            rows = [graph.row(target_nodes[target.id]) for target in dongle.targets]
-            avg_row = sum(rows) / len(dongle.targets)
-            graph.set_row(nodes.dongles[dongle.id].dist, avg_row)
-            graph.set_row(nodes.dongles[dongle.id].spawn, avg_row)
+        # Adjust gadget positions
+        for gadget in self._gadgets.values():
+            rows = [graph.row(target_nodes[target.id]) for target in gadget.targets]
+            avg_row = sum(rows) / len(gadget.targets)
+            graph.set_row(nodes.gadgets[gadget.id].dist, avg_row)
+            graph.set_row(nodes.gadgets[gadget.id].spawn, avg_row)
 
         # Adjust sink end positions
         for edge, sink_id in self._sinks_by_edge.items():
