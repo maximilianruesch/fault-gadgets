@@ -11,7 +11,7 @@ def add_all_gadgets(dg: GadgetGraph) -> Mapping[ET, Tuple[int, int, int]]:
     edge_to_gadget_ids = dict()
     for edge in list(dg.edges()):
         # Gadgets on inputs and outputs do not change for rewrites, thus skip
-        if dg.type(edge[0]) is VertexType.BOUNDARY or dg.type(edge[0]) is VertexType.BOUNDARY:
+        if dg.type(edge[0]) is VertexType.BOUNDARY or dg.type(edge[1]) is VertexType.BOUNDARY:
             continue
 
         edge_to_gadget_ids[edge] = dg.add_edge_flip_gadgets(edge)
