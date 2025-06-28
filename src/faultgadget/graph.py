@@ -22,7 +22,7 @@ class Nodes:
     targets: Dict[int, List[int]] # gadget ID -> target node
     extra_nodes_by_edge: Dict[ET, List[int]] # edge -> extra nodes like targets and sinks
     sinks: Dict[int, SinkNodes] # sink ID -> (gate node, end node)
-    sinks_by_edge: Dict[ET, int] # edge -> gate node
+    sinks_by_edge: Dict[ET, int] # edge -> sink ID
 
     def __init__(self):
         self.gadgets = dict()
@@ -82,6 +82,10 @@ class GadgetGraph(GraphS):
 
     def gadgets(self) -> Dict[int, Gadget]:
         return self._gadgets
+
+    def on_edge(self, target_id: int) -> Optional[ET]:
+        edge_opt = self._on_edge.get(target_id)
+        return upair(*edge_opt) if edge_opt is not None else None
 
     def add_edge_flip_gadgets(self, edge: ET) -> Tuple[int, int, int]:
         return (self.add_gadget(types=['X'], edge=edge),
@@ -206,6 +210,9 @@ class GadgetGraph(GraphS):
     def sinks(self) -> Dict[int, Sink]:
         return self._sinks
 
+    def in_sink(self, target_id: int) -> Optional[int]:
+        return self._in_sink.get(target_id)
+
     def add_sink(self, edge: ET, ty: SinkType) -> Sink:
         _id = self._sink_id_index
         sink = Sink(_id, ty)
@@ -233,11 +240,12 @@ class GadgetGraph(GraphS):
     def realise(self) -> Tuple[GraphS, Nodes]:
         graph = GraphS.clone(self)
         nodes = Nodes()
+        nodes.sinks_by_edge = self._sinks_by_edge.copy()
         target_nodes = dict()
 
         # Instance gadgets and their targets
         for gadget_id, gadget in self._gadgets.items():
-            spawn, dist = graph.add_vertex(VertexType.Z, qubit=-3), graph.add_vertex(VertexType.X, qubit=-2)
+            spawn, dist = graph.add_vertex(VertexType.Z), graph.add_vertex(VertexType.X)
             nodes.gadgets[gadget_id] = Nodes.GadgetNodes(spawn, dist)
             graph.add_edge((spawn, dist), edgetype=EdgeType.SIMPLE)
 
@@ -258,8 +266,6 @@ class GadgetGraph(GraphS):
         # Connect targets and sinks on edges
         for edge in edges:
             left, right = edge
-            s_qubit, s_row = graph.qubit(left), graph.row(left)
-            t_qubit, t_row = graph.qubit(right), graph.row(right)
 
             target_ids = self._targets_by_edge.get(edge) or []
             extra_nodes = [target_nodes[target_id] for target_id in target_ids]
@@ -270,11 +276,7 @@ class GadgetGraph(GraphS):
             last_was_x_target = False
             def _append(index: int, is_x_target: bool):
                 nonlocal left, last_was_x_target
-
                 node = extra_nodes[index]
-                # Position node
-                graph.set_qubit(node, s_qubit + (t_qubit - s_qubit) * ((float(index) + 1) / (len(extra_nodes) + 1)))
-                graph.set_row(node, s_row + (t_row - s_row) * ((float(index) + 1) / (len(extra_nodes) + 1)))
 
                 # Connect to neighbours
                 h_edge = is_x_target ^ last_was_x_target
@@ -300,23 +302,35 @@ class GadgetGraph(GraphS):
             graph.add_edge_table(etab)
             nodes.extra_nodes_by_edge[edge] = extra_nodes
 
-        # Adjust gadget positions
-        for gadget in self._gadgets.values():
-            rows = [graph.row(target_nodes[target.id]) for target in gadget.targets]
-            avg_row = sum(rows) / len(gadget.targets)
-            graph.set_row(nodes.gadgets[gadget.id].dist, avg_row)
-            graph.set_row(nodes.gadgets[gadget.id].spawn, avg_row)
+        return graph, nodes
+
+    @staticmethod
+    def position_nodes(g: GraphS, nodes: Nodes):
+        # Position all extra nodes on the edges
+        for edge, extra_nodes in nodes.extra_nodes_by_edge.items():
+            left, right = edge
+            s_qubit, s_row = g.qubit(left), g.row(left)
+            t_qubit, t_row = g.qubit(right), g.row(right)
+
+            for idx, node in enumerate(extra_nodes):
+                g.set_qubit(node, s_qubit + (t_qubit - s_qubit) * ((float(idx) + 1) / (len(extra_nodes) + 1)))
+                g.set_row(node, s_row + (t_row - s_row) * ((float(idx) + 1) / (len(extra_nodes) + 1)))
+
+        # Position gadgets
+        for gadget_id, gadget_nodes in nodes.gadgets.items():
+            rows = [g.row(target_node) for target_node in nodes.targets[gadget_id]]
+            avg_row = sum(rows) / len(nodes.targets[gadget_id])
+            g.set_row(nodes.gadgets[gadget_id].dist, avg_row)
+            g.set_row(nodes.gadgets[gadget_id].spawn, avg_row)
 
         # Adjust sink end positions
-        for edge, sink_id in self._sinks_by_edge.items():
-            n1_qubit, n1_row = graph.qubit(edge[0]), graph.row(edge[0])
-            n2_qubit, n2_row = graph.qubit(edge[1]), graph.row(edge[1])
+        for edge, sink_id in nodes.sinks_by_edge.items():
+            n1_qubit, n1_row = g.qubit(edge[0]), g.row(edge[0])
+            n2_qubit, n2_row = g.qubit(edge[1]), g.row(edge[1])
             gate, end = nodes.sinks[sink_id]
-            n3_qubit, n3_row = graph.qubit(gate), graph.row(gate)
+            n3_qubit, n3_row = g.qubit(gate), g.row(gate)
 
             n4_normaliser = math.sqrt((n1_row - n2_row) ** 2 + (n1_qubit - n2_qubit) ** 2)
             n4_qubit = n3_qubit + (n1_row - n2_row) / (2 * n4_normaliser)
             n4_row = n3_row + (n1_qubit - n2_qubit) / (2 * n4_normaliser)
-            graph.set_qubit(end, n4_qubit), graph.set_row(end, n4_row)
-
-        return graph, nodes
+            g.set_qubit(end, n4_qubit), g.set_row(end, n4_row)

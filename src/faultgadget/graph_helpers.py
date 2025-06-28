@@ -1,6 +1,5 @@
 from typing import Tuple, List, Mapping
 
-from pyzx import VertexType
 from .sink import SinkType
 from .web import PauliWeb, Pauli, compute_detecting_regions
 from .graph import GadgetGraph
@@ -8,15 +7,7 @@ from .graph import GadgetGraph
 ET = Tuple[int, int]
 
 def add_all_gadgets(dg: GadgetGraph) -> Mapping[ET, Tuple[int, int, int]]:
-    edge_to_gadget_ids = dict()
-    for edge in list(dg.edges()):
-        # Gadgets on inputs and outputs do not change for rewrites, thus skip
-        if dg.type(edge[0]) is VertexType.BOUNDARY or dg.type(edge[1]) is VertexType.BOUNDARY:
-            continue
-
-        edge_to_gadget_ids[edge] = dg.add_edge_flip_gadgets(edge)
-
-    return edge_to_gadget_ids
+    return { edge: dg.add_edge_flip_gadgets(edge) for edge in list(dg.edges()) }
 
 def add_sinks_for_all_detecting_regions(dg: GadgetGraph) -> None:
     add_sinks_for_regions(dg, compute_detecting_regions(dg))
