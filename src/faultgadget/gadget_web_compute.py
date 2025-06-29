@@ -74,8 +74,8 @@ class GadgetPauliWeb(NamedTuple):
                 es.pop((nodes_on_edge[idx], nodes_on_edge[idx + 1]), '')
                 es.pop((nodes_on_edge[idx + 1], nodes_on_edge[idx]), '')
 
-            if lr_edge is not None: es[(nodes_on_edge[0], nodes_on_edge[-1])] = lr_edge
-            if rl_edge is not None: es[(nodes_on_edge[-1], nodes_on_edge[0])] = rl_edge
+            if lr_edge is not None: es[(edge[0], edge[1])] = lr_edge
+            if rl_edge is not None: es[(edge[1], edge[0])] = rl_edge
 
         if validate and z_gadget in x_gadgets:
             raise AssertionError("The gadget of this web may not be highlighted red!")

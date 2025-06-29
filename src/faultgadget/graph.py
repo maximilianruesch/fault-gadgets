@@ -213,6 +213,9 @@ class GadgetGraph(GraphS):
     def in_sink(self, target_id: int) -> Optional[int]:
         return self._in_sink.get(target_id)
 
+    def sink_on_edge(self, sink_id: int) -> ET:
+        return self._sink_on_edge[sink_id]
+
     def add_sink(self, edge: ET, ty: SinkType) -> Sink:
         _id = self._sink_id_index
         sink = Sink(_id, ty)
@@ -249,9 +252,11 @@ class GadgetGraph(GraphS):
             nodes.gadgets[gadget_id] = Nodes.GadgetNodes(spawn, dist)
             graph.add_edge((spawn, dist), edgetype=EdgeType.SIMPLE)
 
+            nodes.targets[gadget_id] = []
             for target in gadget.targets:
                 _target_node = graph.add_vertex(VertexType.Z)
                 target_nodes[target.id] = _target_node
+                nodes.targets[gadget_id].append(_target_node)
                 graph.add_edge((dist, _target_node))
 
         # Instance sinks
@@ -287,11 +292,6 @@ class GadgetGraph(GraphS):
             for idx, target_id in enumerate(target_ids):
                 target = self._targets[target_id]
                 _append(idx, is_x_target=target.type == TargetType.X)
-
-                # Register neighbours with target node information
-                gadget_id = self._in_gadget[target_id]
-                if gadget_id not in nodes.targets: nodes.targets[gadget_id] = []
-                nodes.targets[gadget_id].append(target_nodes[target_id])
 
             if edge in self._sinks_by_edge:
                 _append(len(extra_nodes) - 1, is_x_target=False)

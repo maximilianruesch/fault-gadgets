@@ -19,9 +19,13 @@ def fire_web_onto_gadget(g: GadgetGraph, gadget_id: int, web: GadgetPauliWeb, qu
     for sink_id in web.z_sinks:
         if not quiet: print(f"Firing Z into sink {sink_id} for gadget #{gadget_id}")
         g.add_target_in_sink(TargetType.Z, gadget_id=gadget_id, sink_id=sink_id)
+        # Effectively remove target that was moved from meta edge into sink
+        g.add_target_on_edge(TargetType.Z, gadget_id=gadget_id, edge=g.sink_on_edge(sink_id))
     for sink_id in web.x_sinks:
         if not quiet: print(f"Firing X into sink {sink_id} for gadget #{gadget_id}")
         g.add_target_in_sink(TargetType.X, gadget_id=gadget_id, sink_id=sink_id)
+        # Effectively remove target that was moved from meta edge into sink
+        g.add_target_on_edge(TargetType.X, gadget_id=gadget_id, edge=g.sink_on_edge(sink_id))
 
 def expand_all_gadgets(g: GadgetGraph, quiet: bool = True) -> None:
     if not quiet:
