@@ -9,10 +9,10 @@ ET = Tuple[int, int]
 def add_all_gadgets(dg: GadgetGraph) -> Mapping[ET, Tuple[int, int, int]]:
     return { edge: dg.add_edge_flip_gadgets(edge) for edge in list(dg.edges()) }
 
-def add_sinks_for_all_detecting_regions(dg: GadgetGraph) -> None:
-    add_sinks_for_regions(dg, compute_detecting_regions(dg))
+def add_sinks_for_all_detecting_regions(dg: GadgetGraph) -> int:
+    return add_sinks_for_regions(dg, compute_detecting_regions(dg))
 
-def add_sinks_for_regions(dg: GadgetGraph, regions: List[PauliWeb]) -> None:
+def add_sinks_for_regions(dg: GadgetGraph, regions: List[PauliWeb]) -> int:
     web_index_by_z_edge = dict()
     web_index_by_x_edge = dict()
     for idx, web in enumerate(regions):
@@ -40,8 +40,13 @@ def add_sinks_for_regions(dg: GadgetGraph, regions: List[PauliWeb]) -> None:
     if len(webs_without_unique_edge) > 0:
         raise ValueError("Some webs do not have unique edges!")
 
+    num_sinks_added = 0
     for idx, web in enumerate(regions):
         if idx in unique_z_edge_by_web_index:
             dg.add_sink(unique_z_edge_by_web_index[idx], SinkType.X)
+            num_sinks_added += 1
         if idx in unique_x_edge_by_web_index:
             dg.add_sink(unique_x_edge_by_web_index[idx], SinkType.Z)
+            num_sinks_added += 1
+
+    return num_sinks_added
