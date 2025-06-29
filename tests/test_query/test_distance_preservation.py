@@ -70,6 +70,6 @@ def test_collapse_ring(ring_size):
     _organize_in_ring(g2, z_spiders, radius=3.0)
 
     if ring_size <= 5:
-        assert is_distance_preserving(g1, g2)
+        assert is_distance_preserving(g1, g2, quiet=False)
     else:
         assert not is_distance_preserving(g1, g2)
