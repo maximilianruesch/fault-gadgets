@@ -75,14 +75,9 @@ def _smallest_size_iteration(g1_sig_nf: List[GF2], g2_sig_nf: List[GF2],
                 continue # Detectable
 
             # Perform search with real output signature
-            sig_int_wo_sinks = _sig_wo_sinks_to_int(combined_sig, g2_sinks)
-            if sig_int_wo_sinks not in g1_lookup:
+            if _sig_wo_sinks_to_int(combined_sig, g2_sinks) not in g1_lookup:
                 if not quiet: print(f"{_format_sig(combined_sig, g2_sinks)} has no equivalent in g1, or it was not yet generated and thus has higher weight!")
                 return max_size # No equivalent error with equal or lower weight found
-
-            if g1_lookup[sig_int_wo_sinks] > g2_lookup[sig_int]: # TODO remove?
-                if not quiet: print(f"{_format_sig(combined_sig, g2_sinks)} has higher weight in g1 ({g1_lookup[sig_int_wo_sinks]}) than in g2 ({g2_lookup[sig_int]})!")
-                return max_size # Equivalent error has higher combinatory weight
 
         if False and not discovered_new:
             if not quiet: print("No new signatures discovered!")
