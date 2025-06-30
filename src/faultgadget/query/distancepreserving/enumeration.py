@@ -12,27 +12,26 @@ def _sig_to_int(sig: GF2) -> int:
     return out
 
 def _sig_wo_sinks_to_int(sig: GF2, sinks: int) -> int:
-    reduced_sig = sig[:-(sinks * 2)] if sinks > 0 else sig
+    reduced_sig = sig[:-sinks] if sinks > 0 else sig
     return _sig_to_int(reduced_sig)
 
 def _is_sig_detectable(sig: GF2, sinks: int) -> int:
-    return sinks > 0 and np.any(sig[-(sinks * 2):])
+    return sinks > 0 and np.any(sig[-sinks:])
 
 def _format_sig(sig: GF2, sinks: int) -> str:
-    boundaries = (len(sig) - sinks * 2) // 2
+    boundaries = (len(sig) - sinks) // 2
     b_str = (f"{' '.join(map(str, sig[:boundaries]))}"
             f" | {' '.join(map(str, sig[boundaries:boundaries * 2]))}")
     if sinks == 0:
         return f"[{b_str}]"
 
-    return (f"[{b_str}  ||  {' '.join(map(str, sig[boundaries * 2:boundaries * 2 + sinks]))}"
-            f" | {' '.join(map(str, sig[boundaries * 2 + sinks:]))}]")
+    return f"[{b_str}  ||  {' '.join(map(str, sig[boundaries * 2:]))}]"
 
 def _smallest_size_iteration(g1_sig_nf: List[GF2], g2_sig_nf: List[GF2],
                              g1_sinks: int, g2_sinks: int, quiet: bool = True) -> Optional[int]:
     """
     Takes fault signatures of g1,g2 in normal form (stabilisers factored out) where the sink containment information is
-    provided in the last `..._sinks * 2` elements of the signature.
+    provided in the last `..._sinks` elements of the signature.
 
     Determines the smallest size of a combination `comb_sig` from elements of `g2_sig_nf` such that
 

@@ -55,17 +55,15 @@ def _calculate_signature_normal_forms(g: GadgetGraph, stabiliser_rref: GF2,
                                       sink_id_to_idx: Mapping[int, int], num_sinks: int) -> List[GF2]:
     signatures = gadgets_to_signatures(g, g.gadgets().keys(), boundaries_to_idx, sink_id_to_idx)
 
-    num_escapes = num_boundaries + num_sinks
     signature_normal_forms: List[GF2] = []
     for i, sig in enumerate(signatures.values()):
-        np_sig = GF2.Zeros(num_escapes * 2)
+        np_sig = GF2.Zeros(num_boundaries * 2 + num_sinks)
         for j, pauli in enumerate(sig.boundaries):
             if pauli == Pauli.Z or pauli == Pauli.Y: np_sig[j] = 1
             if pauli == Pauli.X or pauli == Pauli.Y: np_sig[j + num_boundaries] = 1
 
-        for k, pauli in enumerate(sig.sinks): # TODO reduce sink information size
-            if pauli == Pauli.Z or pauli == Pauli.Y: np_sig[k + num_boundaries * 2] = 1
-            if pauli == Pauli.X or pauli == Pauli.Y: np_sig[k + num_boundaries * 2 + num_sinks] = 1
+        for k, active in enumerate(sig.sinks):
+            if active: np_sig[k + num_boundaries * 2] = 1
 
         signature_normal_forms.append(_normalise_signature(np_sig, stabiliser_rref))
 
@@ -88,7 +86,7 @@ def _construct_signatures(g: GraphS, stabiliser_rref: GF2,
     _add_gadgets(gadget_graph)
     expand_all_gadgets(gadget_graph, quiet=quiet)
 
-    extended_stabiliser_rref = GF2(np.hstack([stabiliser_rref, GF2.Zeros((len(stabiliser_rref), num_sinks * 2))]))
+    extended_stabiliser_rref = GF2(np.hstack([stabiliser_rref, GF2.Zeros((len(stabiliser_rref), num_sinks))]))
     sig_nf = _calculate_signature_normal_forms(gadget_graph, extended_stabiliser_rref,
                                                boundaries_to_idx, num_boundaries, sink_id_to_idx, num_sinks)
 
@@ -99,11 +97,11 @@ def _check_smallest_size(g1_stabiliser_rref: GF2, g1_sig_nf: List[GF2], g2_sig_n
     augmented_g1_sig_nf = g1_sig_nf.copy()
     for i in range(g1_num_boundaries): # TODO remove non-unique elements
         # Z Signature
-        x_atomic_sig = GF2.Zeros((g1_num_boundaries + g1_num_sinks) * 2)
+        x_atomic_sig = GF2.Zeros(g1_num_boundaries * 2 + g1_num_sinks)
         x_atomic_sig[i] = 1
         augmented_g1_sig_nf.append(_normalise_signature(x_atomic_sig, g1_stabiliser_rref))
         # X Signature
-        z_atomic_sig = GF2.Zeros((g1_num_boundaries + g1_num_sinks) * 2)
+        z_atomic_sig = GF2.Zeros(g1_num_boundaries * 2 + g1_num_sinks)
         z_atomic_sig[i + g1_num_boundaries] = 1
         augmented_g1_sig_nf.append(_normalise_signature(z_atomic_sig, g1_stabiliser_rref))
         # Y Signature
