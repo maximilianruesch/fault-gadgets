@@ -1,4 +1,4 @@
-from typing import Optional, List, Mapping, Tuple
+from typing import List, Mapping, Tuple
 
 import numpy as np
 from galois import GF2
@@ -23,9 +23,8 @@ def _index_graph_boundaries(g: GraphS) -> Tuple[Mapping[ET, int], int]:
             boundaries_to_idx[b] = i
         else:
             boundaries_to_idx[upair(*b)] = i
-    num_boundaries = len(boundaries_to_neighbors)
 
-    return boundaries_to_idx, num_boundaries
+    return boundaries_to_idx, len(boundaries_to_idx)
 
 def _index_graph_sinks(g: GadgetGraph) -> Tuple[Mapping[int, int], int]:
     sink_id_to_idx = { s: i for i, s in enumerate(g.sinks().keys()) }
@@ -33,7 +32,8 @@ def _index_graph_sinks(g: GadgetGraph) -> Tuple[Mapping[int, int], int]:
 
     return sink_id_to_idx, num_sinks
 
-def _stabiliser_rref(stabilisers: List[PauliWeb], num_boundaries: int, boundaries_to_idx: Mapping[ET, int]) -> GF2: # TODO get num_boundaries from index table
+def _stabiliser_rref(stabilisers: List[PauliWeb], boundaries_to_idx: Mapping[ET, int]) -> GF2:
+    num_boundaries = len(boundaries_to_idx)
     np_stabilisers = np.zeros((len(stabilisers), num_boundaries * 2), dtype=int)
     for i, stab in enumerate(stabilisers):
         for edge, idx in boundaries_to_idx.items():
@@ -92,22 +92,21 @@ def _construct_signatures(g: GraphS, stabiliser_rref: GF2,
 
     return extended_stabiliser_rref, sig_nf, num_sinks
 
-def _check_smallest_size(g1_stabiliser_rref: GF2, g1_sig_nf: List[GF2], g2_sig_nf: List[GF2],
-                         g1_num_boundaries: int, g1_num_sinks: int, g2_num_sinks: int, quiet: bool = True) -> Optional[int]:
-    augmented_g1_sig_nf = g1_sig_nf.copy()
-    for i in range(g1_num_boundaries): # TODO remove non-unique elements
+def _add_boundary_signatures(stabiliser_rref: GF2, sig_nf: List[GF2], num_boundaries: int, num_sinks: int) -> List[GF2]:
+    augmented_sig_nf = sig_nf.copy()
+    for i in range(num_boundaries): # TODO remove non-unique elements
         # Z Signature
-        x_atomic_sig = GF2.Zeros(g1_num_boundaries * 2 + g1_num_sinks)
+        x_atomic_sig = GF2.Zeros(num_boundaries * 2 + num_sinks)
         x_atomic_sig[i] = 1
-        augmented_g1_sig_nf.append(_normalise_signature(x_atomic_sig, g1_stabiliser_rref))
+        augmented_sig_nf.append(_normalise_signature(x_atomic_sig, stabiliser_rref))
         # X Signature
-        z_atomic_sig = GF2.Zeros(g1_num_boundaries * 2 + g1_num_sinks)
-        z_atomic_sig[i + g1_num_boundaries] = 1
-        augmented_g1_sig_nf.append(_normalise_signature(z_atomic_sig, g1_stabiliser_rref))
+        z_atomic_sig = GF2.Zeros(num_boundaries * 2 + num_sinks)
+        z_atomic_sig[i + num_boundaries] = 1
+        augmented_sig_nf.append(_normalise_signature(z_atomic_sig, stabiliser_rref))
         # Y Signature
-        augmented_g1_sig_nf.append(_normalise_signature(x_atomic_sig + z_atomic_sig, g1_stabiliser_rref))
+        augmented_sig_nf.append(_normalise_signature(x_atomic_sig + z_atomic_sig, stabiliser_rref))
 
-    return _smallest_size_iteration(augmented_g1_sig_nf, g2_sig_nf, g1_num_sinks, g2_num_sinks, quiet=quiet)
+    return augmented_sig_nf
 
 def is_distance_preserving(g1: GraphS, g2: GraphS, quiet: bool = True) -> bool:
     g1_boundaries_to_idx, g1_num_boundaries = _index_graph_boundaries(g1) # TODO index boundaries the same way / force the same inputs / outputs
@@ -117,7 +116,7 @@ def is_distance_preserving(g1: GraphS, g2: GraphS, quiet: bool = True) -> bool:
 
     if not quiet: print("Computing stabilisers...")
     stabilisers = compute_stabilisers(g1) # TODO if strict, compute stabilisers of g2 and assert space equality
-    stabiliser_rref = _stabiliser_rref(stabilisers, g1_num_boundaries, g1_boundaries_to_idx)
+    stabiliser_rref = _stabiliser_rref(stabilisers, g1_boundaries_to_idx)
 
     if not quiet: print("Constructing signatures of g1...")
     g1_stabiliser_rref, g1_sig_nf, g1_num_sinks = _construct_signatures(g1, stabiliser_rref, g1_boundaries_to_idx, g1_num_boundaries, quiet=quiet)
@@ -126,10 +125,12 @@ def is_distance_preserving(g1: GraphS, g2: GraphS, quiet: bool = True) -> bool:
     g2_stabiliser_rref, g2_sig_nf, g2_num_sinks = _construct_signatures(g2, stabiliser_rref, g2_boundaries_to_idx, g2_num_boundaries, quiet=quiet)
 
     if not quiet: print("Checking if g1 -> g2 is distance non-decreasing...")
-    g1_g2_weight = _check_smallest_size(g1_stabiliser_rref, g1_sig_nf, g2_sig_nf, g1_num_boundaries, g1_num_sinks, g2_num_sinks, quiet=quiet)
+    augmented_g1_sig_nf = _add_boundary_signatures(g1_stabiliser_rref, g1_sig_nf, g1_num_boundaries, g1_num_sinks)
+    g1_g2_weight = _smallest_size_iteration(augmented_g1_sig_nf, g2_sig_nf, g1_num_sinks, g2_num_sinks, quiet=quiet)
     if g1_g2_weight is not None:
         return False
 
     if not quiet: print("Checking if g2 -> g1 is distance non-decreasing...")
-    g2_g1_weight = _check_smallest_size(g2_stabiliser_rref, g2_sig_nf, g1_sig_nf, g2_num_boundaries, g2_num_sinks, g1_num_sinks, quiet=quiet)
+    augmented_g2_sig_nf = _add_boundary_signatures(g2_stabiliser_rref, g2_sig_nf, g2_num_boundaries, g2_num_sinks)
+    g2_g1_weight = _smallest_size_iteration(augmented_g2_sig_nf, g1_sig_nf, g2_num_sinks, g1_num_sinks, quiet=quiet)
     return g2_g1_weight is None
