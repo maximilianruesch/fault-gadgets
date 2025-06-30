@@ -29,14 +29,13 @@ def test_no_leg_spider_fuse(fan_out):
     Fusing a spider with exactly one leg into its neighbor with a variable number of legs.
     """
     g1 = GraphS()
-    b = g1.add_vertex(zx.VertexType.BOUNDARY)
-    z = g1.add_vertex(zx.VertexType.Z)
-    g1.add_edge((b, z))
+    bz, z = g1.add_vertex(zx.VertexType.Z), g1.add_vertex(zx.VertexType.Z)
+    g1.add_edge((bz, z))
     for i in range(fan_out):
         g1.add_edge((z, g1.add_vertex(zx.VertexType.BOUNDARY)))
 
     g2 = g1.clone(GraphS())
-    g2.set_type(b, zx.VertexType.Z)
+    g2.remove_vertex(bz)
 
     assert is_distance_preserving(g1, g2)
 
