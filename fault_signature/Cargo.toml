@@ -9,4 +9,6 @@ name = "fault_signature"
 crate-type = ["cdylib"]
 
 [dependencies]
+bitgauss = "0.3.4"
+itertools = "0.14.0"
 pyo3 = "0.25.0"
