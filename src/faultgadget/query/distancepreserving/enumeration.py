@@ -15,7 +15,7 @@ def _sig_wo_sinks_to_int(sig: GF2, sinks: int) -> int:
     reduced_sig = sig[:-sinks] if sinks > 0 else sig
     return _sig_to_int(reduced_sig)
 
-def _is_sig_detectable(sig: GF2, sinks: int) -> int:
+def _is_sig_detectable(sig: GF2, sinks: int) -> bool:
     return sinks > 0 and np.any(sig[-sinks:])
 
 def _format_sig(sig: GF2, sinks: int) -> str:
