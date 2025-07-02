@@ -79,7 +79,7 @@ def _smallest_size_iteration(g1_sig_nf: List[GF2], g2_sig_nf: List[GF2],
                 if not quiet: print(f"{_format_sig(combined_sig, g2_sinks)} has no equivalent in g1, or it was not yet generated and thus has higher weight!")
                 return max_size # No equivalent error with equal or lower weight found
 
-        if False and not discovered_new:
+        if not discovered_new:
             if not quiet: print("No new signatures discovered!")
             break
 
