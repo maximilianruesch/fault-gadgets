@@ -73,26 +73,26 @@ def test_collapse_ring(ring_size):
     else:
         assert not is_distance_preserving(g1, g2)
 
-def _add_cat_state(g: GraphS, size: int) -> Tuple[int, List[int]]:
-    z = g.add_vertex(zx.VertexType.Z)
-    boundaries = [g.add_vertex(zx.VertexType.BOUNDARY) for _ in range(size)]
+def _add_cat_state(g: GraphS, size: int, qubit: int = 0, row: int = 0) -> Tuple[int, List[int]]:
+    z = g.add_vertex(zx.VertexType.Z, qubit=qubit, row=row)
+    boundaries = [g.add_vertex(zx.VertexType.BOUNDARY, qubit=qubit + i, row=row + 1) for i in range(size)]
     g.add_edges([(z, b) for b in boundaries])
 
     return z, boundaries
 
-@pytest.mark.parametrize("n", [2, 3, 4, 5])
+@pytest.mark.parametrize("n", [2, 3, 4, 5, 6, 7])
 def test_cat_state_decomposition(n):
     """
     Expanding a cat state with 2n legs into two cat states with n legs.
     From https://arxiv.org/pdf/2506.17181.
     """
     g1 = GraphS()
-    _add_cat_state(g1, size=2*n)
+    _add_cat_state(g1, size=2*n, qubit=0, row=0)
 
     g2 = GraphS()
-    _, bs1 = _add_cat_state(g2, size=n)
-    _, bs2 = _add_cat_state(g2, size=n)
-    new_bs = [g2.add_vertex(zx.VertexType.BOUNDARY) for _ in range(2*n)]
+    _, bs1 = _add_cat_state(g2, size=n, qubit=2, row=0)
+    _, bs2 = _add_cat_state(g2, size=n, qubit=6, row=0)
+    new_bs = [g2.add_vertex(zx.VertexType.BOUNDARY, qubit=i, row=2*(n+1)) for i in range(2*n)]
     for i in range(n):
         g2.set_type(bs1[i], zx.VertexType.Z)
         g2.set_type(bs2[i], zx.VertexType.Z)
