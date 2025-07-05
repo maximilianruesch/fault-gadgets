@@ -1,3 +1,4 @@
 -e lib/pyzx
 numpy
 galois
+tqdm
