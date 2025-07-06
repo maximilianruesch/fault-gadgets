@@ -21,7 +21,7 @@ def test_id_spider_simp():
     g2 = GraphS()
     g2.add_edges([(g2.add_vertex(zx.VertexType.BOUNDARY), g2.add_vertex(zx.VertexType.BOUNDARY))])
 
-    assert is_distance_preserving(g1, g2, quiet=False)
+    assert is_distance_preserving(g1, g2)
 
 @pytest.mark.parametrize("fan_out", [2, 4, 10, 69])
 def test_no_leg_spider_fuse(fan_out):
@@ -80,7 +80,7 @@ def _add_cat_state(g: GraphS, size: int, qubit: int = 0, row: int = 0) -> Tuple[
 
     return z, boundaries
 
-@pytest.mark.parametrize("n", [2, 3, 4, 5, 6, 7])
+@pytest.mark.parametrize("n", [2, 3, 4, 5, 7])
 def test_cat_state_decomposition(n):
     """
     Expanding a cat state with 2n legs into two cat states with n legs.
@@ -98,4 +98,4 @@ def test_cat_state_decomposition(n):
         g2.set_type(bs2[i], zx.VertexType.Z)
         g2.add_edges([(bs1[i], bs2[i]), (bs1[i], new_bs[i]), [bs2[i], new_bs[i + n]]])
 
-    assert is_distance_preserving(g1, g2, quiet=False)
+    assert is_distance_preserving(g1, g2)

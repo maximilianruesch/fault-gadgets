@@ -130,11 +130,11 @@ def is_distance_preserving(g1: GraphS, g2: GraphS, quiet: bool = True) -> bool:
 
     if not quiet: print("Checking if g1 -> g2 is distance non-decreasing...")
     augmented_g1_sig_nf = _add_boundary_signatures(g1_stabs, g1_sig_nf, g1_num_boundaries, g1_num_sinks)
-    g1_g2_weight = _smallest_size_iteration(augmented_g1_sig_nf, g2_sig_nf, g1_num_sinks, g2_num_sinks, quiet=quiet)
+    g1_g2_weight = _smallest_size_iteration(augmented_g1_sig_nf, g2_sig_nf, g1_num_sinks, g2_num_boundaries, g2_num_sinks, quiet=quiet)
     if g1_g2_weight is not None:
         return False
 
     if not quiet: print("Checking if g2 -> g1 is distance non-decreasing...")
     augmented_g2_sig_nf = _add_boundary_signatures(g2_stabs, g2_sig_nf, g2_num_boundaries, g2_num_sinks)
-    g2_g1_weight = _smallest_size_iteration(augmented_g2_sig_nf, g1_sig_nf, g2_num_sinks, g1_num_sinks, quiet=quiet)
+    g2_g1_weight = _smallest_size_iteration(augmented_g2_sig_nf, g1_sig_nf, g2_num_sinks, g1_num_boundaries, g1_num_sinks, quiet=quiet)
     return g2_g1_weight is None
