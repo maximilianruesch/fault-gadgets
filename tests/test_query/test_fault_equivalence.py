@@ -4,12 +4,13 @@ from typing import List, Tuple
 import pytest
 
 import pyzx as zx
-from faultgadget.query.distancepreserving import is_distance_preserving
+from faultgadget.query.equivalence import is_fault_equivalent
 from pyzx.graph.graph_s import GraphS
 
 def test_id_spider_simp():
     """
     Simplification of a single spider to an identity wire.
+    From https://arxiv.org/pdf/2506.17181.
     """
     g1 = GraphS()
     z = g1.add_vertex(zx.VertexType.Z)
@@ -21,12 +22,13 @@ def test_id_spider_simp():
     g2 = GraphS()
     g2.add_edges([(g2.add_vertex(zx.VertexType.BOUNDARY), g2.add_vertex(zx.VertexType.BOUNDARY))])
 
-    assert is_distance_preserving(g1, g2)
+    assert is_fault_equivalent(g1, g2)
 
 @pytest.mark.parametrize("fan_out", [2, 4, 10, 69])
 def test_no_leg_spider_fuse(fan_out):
     """
     Fusing a spider with exactly one leg into its neighbor with a variable number of legs.
+    From https://arxiv.org/pdf/2506.17181.
     """
     g1 = GraphS()
     bz, z = g1.add_vertex(zx.VertexType.Z), g1.add_vertex(zx.VertexType.Z)
@@ -37,7 +39,7 @@ def test_no_leg_spider_fuse(fan_out):
     g2 = g1.clone(GraphS())
     g2.remove_vertex(bz)
 
-    assert is_distance_preserving(g1, g2)
+    assert is_fault_equivalent(g1, g2)
 
 def _organize_in_ring(g: GraphS, nodes: List[int], radius: float) -> None:
     n = len(nodes)
@@ -51,6 +53,7 @@ def _organize_in_ring(g: GraphS, nodes: List[int], radius: float) -> None:
 def test_collapse_ring(ring_size):
     """
     Collapsing a ring of spiders into a single spider.
+    From https://arxiv.org/pdf/2506.17181 and generalised for ring size > 5.
     """
     g1 = GraphS()
     b_spiders_2 = [g1.add_vertex(zx.VertexType.BOUNDARY) for _ in range(ring_size)]
@@ -69,9 +72,9 @@ def test_collapse_ring(ring_size):
     _organize_in_ring(g2, z_spiders, radius=3.0)
 
     if ring_size <= 5:
-        assert is_distance_preserving(g1, g2)
+        assert is_fault_equivalent(g1, g2)
     else:
-        assert not is_distance_preserving(g1, g2)
+        assert not is_fault_equivalent(g1, g2)
 
 def _add_cat_state(g: GraphS, size: int, qubit: int = 0, row: int = 0) -> Tuple[int, List[int]]:
     z = g.add_vertex(zx.VertexType.Z, qubit=qubit, row=row)
@@ -98,4 +101,4 @@ def test_cat_state_decomposition(n):
         g2.set_type(bs2[i], zx.VertexType.Z)
         g2.add_edges([(bs1[i], bs2[i]), (bs1[i], new_bs[i]), [bs2[i], new_bs[i + n]]])
 
-    assert is_distance_preserving(g1, g2)
+    assert is_fault_equivalent(g1, g2)

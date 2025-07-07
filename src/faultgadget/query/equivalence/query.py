@@ -112,7 +112,10 @@ def _add_boundary_signatures(stabs: AugmentedStabilisers, sig_nf: List[GF2], num
 
     return augmented_sig_nf
 
-def is_distance_preserving(g1: GraphS, g2: GraphS, quiet: bool = True) -> bool:
+def is_fault_equivalent(g1: GraphS, g2: GraphS, quiet: bool = True) -> bool:
+    """
+    Given two diagrams g1 and g2, determine if they are fault equivalent under the edge flip noise model.
+    """
     g1_boundaries_to_idx, g1_num_boundaries = _index_graph_boundaries(g1) # TODO index boundaries the same way / force the same inputs / outputs
     g2_boundaries_to_idx, g2_num_boundaries = _index_graph_boundaries(g2)
     if g1_num_boundaries != g2_num_boundaries:
@@ -128,13 +131,13 @@ def is_distance_preserving(g1: GraphS, g2: GraphS, quiet: bool = True) -> bool:
     if not quiet: print("Constructing signatures of g2...")
     g2_stabs, g2_sig_nf, g2_num_sinks = _construct_signatures(g2, stabiliser_rref, g2_boundaries_to_idx, g2_num_boundaries, quiet=quiet)
 
-    if not quiet: print("Checking if g1 -> g2 is distance non-decreasing...")
+    if not quiet: print("Checking if g1 -> g2 is fault bounded...")
     augmented_g1_sig_nf = _add_boundary_signatures(g1_stabs, g1_sig_nf, g1_num_boundaries, g1_num_sinks)
     g1_g2_weight = _smallest_size_iteration(augmented_g1_sig_nf, g2_sig_nf, g1_num_sinks, g2_num_boundaries, g2_num_sinks, quiet=quiet)
     if g1_g2_weight is not None:
         return False
 
-    if not quiet: print("Checking if g2 -> g1 is distance non-decreasing...")
+    if not quiet: print("Checking if g2 -> g1 is fault bounded...")
     augmented_g2_sig_nf = _add_boundary_signatures(g2_stabs, g2_sig_nf, g2_num_boundaries, g2_num_sinks)
     g2_g1_weight = _smallest_size_iteration(augmented_g2_sig_nf, g1_sig_nf, g2_num_sinks, g1_num_boundaries, g1_num_sinks, quiet=quiet)
     return g2_g1_weight is None
