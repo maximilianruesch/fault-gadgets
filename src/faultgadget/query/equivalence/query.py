@@ -8,10 +8,10 @@ from pyzx.graph.graph_s import GraphS
 from ...gadget_web_compute import compute_signatures_for_gadgets
 from ...graph_helpers import add_sinks_for_all_detecting_regions
 from ...graph import GadgetGraph
-from ...web import compute_stabilisers
+from ...web import compute_stabiliser_signatures
 from .enumeration import _smallest_size_iteration
-from ...signature import GadgetSignature
-from ...pauli import Pauli, PauliWeb
+from ...signature import Signature, GadgetSignature
+from ...pauli import Pauli
 
 ET = Tuple[int, int]
 
@@ -37,14 +37,12 @@ class AugmentedStabilisers:
                 normalised_sig += stab
         return normalised_sig
 
-def _stabiliser_rref(stabilisers: List[PauliWeb], boundaries_to_idx: Mapping[int, int]) -> GF2:
+def _stabiliser_rref(stabilisers: List[Signature], boundaries_to_idx: Mapping[int, int]) -> GF2:
     num_boundaries = len(boundaries_to_idx)
     np_stabilisers = np.zeros((len(stabilisers), num_boundaries * 2), dtype=int)
     for i, stab in enumerate(stabilisers):
-        for boundary, idx in boundaries_to_idx.items():
-            paulis = [p for e, p in stab.half_edges().items() if e[0] == boundary]
-            assert len(paulis) <= 1
-            pauli = paulis[0] if len(paulis) == 1 else None
+        for boundary, pauli in stab.items():
+            idx = boundaries_to_idx[boundary]
             if pauli == Pauli.Z or pauli == Pauli.Y: np_stabilisers[i, idx] = 1
             if pauli == Pauli.X or pauli == Pauli.Y: np_stabilisers[i, idx + num_boundaries] = 1
 
@@ -118,7 +116,7 @@ def is_fault_equivalent(g1: GraphS, g2: GraphS, quiet: bool = True) -> bool:
         raise RuntimeError("Number of boundaries in graphs must be the same!")
 
     if not quiet: print("Computing stabilisers...")
-    stabilisers = compute_stabilisers(g1) # TODO if strict, compute stabilisers of g2 and assert space equality
+    stabilisers = compute_stabiliser_signatures(g1) # TODO if strict, compute stabilisers of g2 and assert space equality
     stabiliser_rref = _stabiliser_rref(stabilisers, g1_boundaries_to_idx)
 
     if not quiet: print("Constructing signatures of g1...")

@@ -2,8 +2,10 @@ from typing import List
 
 from pyzx import Mat2
 from pyzx.graph.graph_s import GraphS
+from . import to_irreversible_red_green_form, convert_firing_assignment_to_signature
 from .red_green import to_red_green_form
 from .firing_assignments import determine_ordering, create_firing_verification, convert_firing_assignment_to_web
+from .. import Signature
 from ..pauli import PauliWeb
 
 def compute_webs(graph: GraphS) -> List[PauliWeb]:
@@ -62,3 +64,21 @@ def compute_stabilisers(graph: GraphS) -> List[PauliWeb]:
     for web in webs: additional_nodes.remove_from(g, web)
 
     return webs
+
+def compute_stabiliser_signatures(graph: GraphS) -> List[Signature]:
+    g = graph.clone()
+
+    to_irreversible_red_green_form(g)
+    ordering = determine_ordering(g)
+    m_d = create_firing_verification(g, ordering)
+
+    # Compute basis of valid firing assignment space
+    sol_basis = Mat2(m_d.nullspace())
+    # Search for solutions that do not highlight boundary edges, i.e. detecting regions
+    boundary_selected_basis = sol_basis.transpose()[:len(ordering.z_boundaries) * 2,:]
+
+    pivot_cols = []
+    boundary_selected_basis.gauss(pivot_cols=pivot_cols)
+    stabilisers = [sol_basis.data[i] for i in pivot_cols]
+
+    return list(map(lambda v: convert_firing_assignment_to_signature(ordering, v), stabilisers))
