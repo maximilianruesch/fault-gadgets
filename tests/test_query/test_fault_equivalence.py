@@ -1,4 +1,5 @@
 import math
+from fractions import Fraction
 from typing import List, Tuple
 
 import pytest
@@ -21,6 +22,27 @@ def test_id_spider_simp():
 
     g2 = GraphS()
     g2.add_edges([(g2.add_vertex(zx.VertexType.BOUNDARY), g2.add_vertex(zx.VertexType.BOUNDARY))])
+
+    assert is_fault_equivalent(g1, g2)
+
+def test_2_pi_2_fuse():
+    """
+    Fusing two pi/2 spiders into a single pi spider.
+    """
+    g1 = GraphS()
+    z1, z2 = g1.add_vertex(zx.VertexType.Z, phase=Fraction(1, 2)), g1.add_vertex(zx.VertexType.Z, phase=Fraction(1, 2))
+    g1.add_edges([
+        (g1.add_vertex(zx.VertexType.BOUNDARY), z1),
+        (z1, z2),
+        (z2, g1.add_vertex(zx.VertexType.BOUNDARY))
+    ])
+
+    g2 = GraphS()
+    z = g2.add_vertex(zx.VertexType.Z, phase=1)
+    g2.add_edges([
+        (g2.add_vertex(zx.VertexType.BOUNDARY), z),
+        (z, g2.add_vertex(zx.VertexType.BOUNDARY))
+    ])
 
     assert is_fault_equivalent(g1, g2)
 
