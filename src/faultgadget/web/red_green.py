@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from fractions import Fraction
-from typing import Dict, List, ClassVar, Optional, Tuple
+from typing import Dict, List, ClassVar, Optional, Tuple, Iterable
 
-from pyzx import VertexType, EdgeType
+from pyzx import VertexType, EdgeType, spider_simp
 from pyzx.editor_actions import match_hadamard_edge
 from pyzx.graph.graph_s import GraphS
 
@@ -194,7 +194,32 @@ def _euler_expand_edges(g: GraphS, nodes: AdditionalNodes) -> None:
         w1, w2, w3 = _decompose_between(v1, v2, flip)
         nodes.add_expanded_hadamard(ExpandedHadamard(w1, w2, w3, origin=None, flipped_decomposition=flip))
 
-def to_red_green_graphlike(g: GraphS) -> AdditionalNodes:
+def _ensure_red_green_boundaries(g: GraphS) -> Iterable[int]:
+    new_nodes = []
+    # Introduce intermediate nodes for boundary <-> boundary connections
+    for s, t in list(g.edges()):
+        if g.type(s) == g.type(t) and g.type(s) == VertexType.BOUNDARY:
+            new_nodes.append(_place_node_between(g, VertexType.X, s, t))
+
+    # Ensure boundaries are not connected to a red spider
+    boundaries = [v for v in g.vertices() if g.type(v) == VertexType.BOUNDARY]
+    for boundary in boundaries:
+        neighbour = list(g.neighbors(boundary))[0]
+        if g.type(neighbour) == VertexType.X:
+            new_nodes.append(_place_node_between(g, VertexType.Z, boundary, neighbour))
+
+    # Ensure boundaries are not connected to green spiders with nonzero phase or more than one boundary connection
+    for boundary in boundaries:
+        neighbour = list(g.neighbors(boundary))[0]
+        neighbour_boundaries = [v for v in g.neighbors(neighbour) if g.type(v) == VertexType.BOUNDARY]
+        if g.phase(neighbour) != 0 or len(neighbour_boundaries) > 1:
+            new_x = _place_node_between(g, VertexType.X, boundary, neighbour)
+            new_nodes.append(new_x)
+            new_nodes.append(_place_node_between(g, VertexType.Z, boundary, new_x))
+
+    return new_nodes
+
+def to_red_green_form(g: GraphS) -> AdditionalNodes:
     # Convert all H-edges and Hadamards to red and green spiders
     additional_nodes = AdditionalNodes.empty()
     _euler_expand_edges(g, additional_nodes)
@@ -218,26 +243,19 @@ def to_red_green_graphlike(g: GraphS) -> AdditionalNodes:
     # Introduce intermediate nodes
     for s, t in list(g.edges()):
         if g.type(s) == g.type(t):
-            if g.type(s) == VertexType.BOUNDARY or g.type(s) == VertexType.Z:
-                new_type = VertexType.X
-            else:
-                new_type = VertexType.Z
+            new_type = VertexType.Z if g.type(s) == VertexType.X else VertexType.X
             additional_nodes.add_extra_id_node(_place_node_between(g, new_type, s, t))
 
-    # Ensure boundaries are not connected to a red spider
-    boundaries = [v for v in g.vertices() if g.type(v) == VertexType.BOUNDARY]
-    for boundary in boundaries:
-        neighbour = list(g.neighbors(boundary))[0]
-        if g.type(neighbour) == VertexType.X:
-            additional_nodes.add_extra_id_node(_place_node_between(g, VertexType.Z, boundary, neighbour))
-
-    # Ensure boundaries are not connected to green spiders with nonzero phase or more than one boundary connection
-    for boundary in boundaries:
-        neighbour = list(g.neighbors(boundary))[0]
-        neighbour_boundaries = [v for v in g.neighbors(neighbour) if g.type(v) == VertexType.BOUNDARY]
-        if g.phase(neighbour) != 0 or len(neighbour_boundaries) > 1:
-            new_x = _place_node_between(g, VertexType.X, boundary, neighbour)
-            additional_nodes.add_extra_id_node(new_x)
-            additional_nodes.add_extra_id_node(_place_node_between(g, VertexType.Z, boundary, new_x))
+    for node in _ensure_red_green_boundaries(g):
+        additional_nodes.add_extra_id_node(node)
 
     return additional_nodes
+
+def to_irreversible_red_green_form(g: GraphS) -> None:
+    """
+    Modifies the given graph to be in red-green form using a procedure that is not easily reversed.
+    Best suited for algorithms that only require easy read-off of stabilisers.
+    """
+    assert g.get_auto_simplify()
+    spider_simp(g, quiet=True)
+    _ensure_red_green_boundaries(g)

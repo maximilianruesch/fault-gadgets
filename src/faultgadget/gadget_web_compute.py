@@ -4,15 +4,14 @@ from typing import Mapping, Iterable, NamedTuple, Dict, Tuple, List, Set, Iterat
 import numpy as np
 from galois import GF2
 
-from pyzx import Mat2, VertexType, spider_simp
+from pyzx import Mat2, VertexType
 from pyzx.graph.graph_s import GraphS
 from pyzx.linalg import Z2
 from .signature import Signature
-from .web import PauliWeb, to_red_green_graphlike, determine_ordering, create_firing_verification, \
-    convert_firing_assignment_to_web, Pauli
+from .web import PauliWeb, to_red_green_form, determine_ordering, create_firing_verification, \
+    convert_firing_assignment_to_web, Pauli, to_irreversible_red_green_form
 from .graph import GadgetGraph, Nodes
 from .web.firing_assignments import GraphOrdering
-from .web.graphlike import _place_node_between
 
 ET = Tuple[int, int]
 
@@ -139,7 +138,7 @@ def compute_webs_for_gadgets(graph: GadgetGraph, gadget_ids: Iterable[int]) -> M
         g.set_type(sink_nodes.end, VertexType.BOUNDARY)
 
     # Computing all webs of all gadgets
-    additional_nodes = to_red_green_graphlike(g)
+    additional_nodes = to_red_green_form(g)
     ordering = determine_ordering(g)
 
     webs = dict()
@@ -149,30 +148,6 @@ def compute_webs_for_gadgets(graph: GadgetGraph, gadget_ids: Iterable[int]) -> M
         webs[gadget_id] = GadgetPauliWeb.extract(web, nodes)
 
     return webs
-
-def _to_more_efficient_graph_like(g: GraphS) -> None:
-    assert g.get_auto_simplify()
-    spider_simp(g, quiet=True)
-
-    # Introduce intermediate nodes for boundary <-> boundary connections
-    for s, t in list(g.edges()):
-        if g.type(s) == g.type(t) and g.type(s) == VertexType.BOUNDARY:
-            _place_node_between(g, VertexType.X, s, t)
-
-    # Ensure boundaries are not connected to a red spider
-    boundaries = [v for v in g.vertices() if g.type(v) == VertexType.BOUNDARY]
-    for boundary in boundaries:
-        neighbour = list(g.neighbors(boundary))[0]
-        if g.type(neighbour) == VertexType.X:
-            _place_node_between(g, VertexType.Z, boundary, neighbour)
-
-    # Ensure boundaries are not connected to green spiders with nonzero phase or more than one boundary connection
-    for boundary in boundaries:
-        neighbour = list(g.neighbors(boundary))[0]
-        neighbour_boundaries = [v for v in g.neighbors(neighbour) if g.type(v) == VertexType.BOUNDARY]
-        if g.phase(neighbour) != 0 or len(neighbour_boundaries) > 1:
-            new_x = _place_node_between(g, VertexType.X, boundary, neighbour)
-            _place_node_between(g, VertexType.Z, boundary, new_x)
 
 def _convert_firing_assignment_to_signature(ordering: GraphOrdering, spawn_nodes: Set[int], sink_end_to_id: Mapping[int, int], v: List[Z2]) -> Signature:
     g_boundaries = defaultdict(lambda: Pauli.I)
@@ -210,7 +185,7 @@ def compute_signatures_for_gadgets(graph: GadgetGraph, gadget_ids: Iterable[int]
         g.set_type(end, VertexType.BOUNDARY)
 
     # Computing all webs of all gadgets
-    _to_more_efficient_graph_like(g)
+    to_irreversible_red_green_form(g)
     ordering = determine_ordering(g)
 
     signatures = dict()
