@@ -1,4 +1,5 @@
-from typing import Dict, List, NamedTuple
+from collections import defaultdict
+from typing import Dict, List, NamedTuple, Mapping
 
 import numpy as np
 
@@ -6,7 +7,8 @@ from pyzx import Mat2, VertexType
 from pyzx.graph.graph_s import GraphS
 from pyzx.linalg import Z2
 
-from .pauli import Pauli, PauliWeb
+from ..pauli import Pauli, PauliWeb
+from ..signature import Signature
 
 class GraphOrdering(NamedTuple):
     graph_to_ordering: Dict[int, int]
@@ -85,3 +87,16 @@ def convert_firing_assignment_to_web(g: GraphS, ordering: GraphOrdering, v: List
             g_web.add_edge((g_z_boundary, g_boundary), Pauli.Z)
 
     return g_web
+
+def convert_firing_assignment_to_signature(ordering: GraphOrdering, v: List[Z2]) -> Signature:
+    boundaries: Mapping[int, Pauli] = defaultdict(lambda: Pauli.I)
+
+    # Read signature directly from output edges
+    for g_z_boundary, g_boundary in ordering.z_boundaries.items():
+        adj_z_boundary = ordering.ord(g_z_boundary)
+        if v[adj_z_boundary] == 1:
+            boundaries[g_boundary] *= Pauli.Z
+        if v[adj_z_boundary + len(ordering.z_boundaries)] == 1:
+            boundaries[g_boundary] *= Pauli.X
+
+    return boundaries

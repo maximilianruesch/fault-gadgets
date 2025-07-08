@@ -3,7 +3,7 @@ from typing import List, Mapping, Tuple, Dict, Iterable
 from pyzx.graph.base import upair
 from pyzx.graph.graph_s import GraphS
 from ... import add_all_gadgets, GadgetGraph, add_sinks_for_all_detecting_regions, expand_all_gadgets
-from ...web import Pauli
+from ...pauli import Pauli
 
 ET = Tuple[int, int]
 

@@ -2,17 +2,19 @@ from collections import defaultdict
 from typing import Mapping, Iterable, Tuple, NamedTuple, Dict
 
 from pyzx import VertexType
-from faultgadget.gadget import TargetType
-from faultgadget.graph import GadgetGraph
-from faultgadget.web import Pauli
+from .gadget import TargetType
+from .graph import GadgetGraph
+from .pauli import Pauli
 
 ET = Tuple[int, int]
 
-class Signature(NamedTuple):
+type Signature = Mapping[int, Pauli]
+
+class GadgetSignature(NamedTuple):
     boundaries: Mapping[int, Pauli]
     sinks: Mapping[int, bool]
 
-def gadgets_to_signatures(g: GadgetGraph, gadget_ids: Iterable[int]) -> Mapping[int, Signature]:
+def gadgets_to_signatures(g: GadgetGraph, gadget_ids: Iterable[int]) -> Mapping[int, GadgetSignature]:
     b_vertices = [v for v in g.vertices() if g.type(v) == VertexType.BOUNDARY]
 
     signatures = dict()
@@ -30,6 +32,6 @@ def gadgets_to_signatures(g: GadgetGraph, gadget_ids: Iterable[int]) -> Mapping[
             elif sink_id is not None:
                 sinks[sink_id] = True
 
-        signatures[gadget_id] = Signature(boundaries, sinks)
+        signatures[gadget_id] = GadgetSignature(boundaries, sinks)
 
     return signatures

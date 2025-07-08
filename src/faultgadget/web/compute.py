@@ -4,8 +4,7 @@ from pyzx import Mat2
 from pyzx.graph.graph_s import GraphS
 from .red_green import to_red_green_form
 from .firing_assignments import determine_ordering, create_firing_verification, convert_firing_assignment_to_web
-
-from .pauli import PauliWeb
+from ..pauli import PauliWeb
 
 def compute_webs(graph: GraphS) -> List[PauliWeb]:
     g = graph.clone()

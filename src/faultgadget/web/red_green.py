@@ -6,7 +6,7 @@ from pyzx import VertexType, EdgeType, spider_simp
 from pyzx.editor_actions import match_hadamard_edge
 from pyzx.graph.graph_s import GraphS
 
-from .pauli import Pauli, PauliWeb
+from ..pauli import Pauli, PauliWeb
 
 @dataclass(init=True, frozen=True)
 class ExtraIdNode:

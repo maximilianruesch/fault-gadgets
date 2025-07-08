@@ -1,8 +1,9 @@
 from typing import Tuple, List, Mapping
 
 from .sink import SinkType
-from .web import PauliWeb, Pauli, compute_detecting_regions
+from .web import compute_detecting_regions
 from .graph import GadgetGraph
+from .pauli import PauliWeb, Pauli
 
 ET = Tuple[int, int]
 

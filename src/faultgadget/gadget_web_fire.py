@@ -1,6 +1,6 @@
 from .gadget import TargetType
 from .graph import GadgetGraph
-from .web import Pauli
+from .pauli import Pauli
 from .gadget_web_compute import compute_webs_for_gadgets, GadgetPauliWeb
 from pyzx import VertexType
 

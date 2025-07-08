@@ -8,9 +8,10 @@ from pyzx.graph.graph_s import GraphS
 from ...gadget_web_compute import compute_signatures_for_gadgets
 from ...graph_helpers import add_sinks_for_all_detecting_regions
 from ...graph import GadgetGraph
-from ...web import compute_stabilisers, Pauli, PauliWeb
+from ...web import compute_stabilisers
 from .enumeration import _smallest_size_iteration
-from ... import Signature
+from ...signature import GadgetSignature
+from ...pauli import Pauli, PauliWeb
 
 ET = Tuple[int, int]
 
@@ -49,7 +50,7 @@ def _stabiliser_rref(stabilisers: List[PauliWeb], boundaries_to_idx: Mapping[int
 
     return GF2(np_stabilisers).row_reduce(eye='left')
 
-def _calculate_signature_normal_forms(signatures: Mapping[int, Signature], stabs: AugmentedStabilisers,
+def _calculate_signature_normal_forms(signatures: Mapping[int, GadgetSignature], stabs: AugmentedStabilisers,
                                       boundaries_to_idx: Mapping[int, int], num_boundaries: int,
                                       sink_to_idx: Mapping[int, int], num_sinks: int) -> List[GF2]:
     signature_normal_forms: List[GF2] = []
