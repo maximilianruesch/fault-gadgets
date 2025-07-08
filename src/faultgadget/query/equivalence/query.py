@@ -5,12 +5,12 @@ from galois import GF2
 
 from pyzx import VertexType
 from pyzx.graph.graph_s import GraphS
+from ...gadget_web_compute import compute_signatures_for_gadgets
 from ...graph_helpers import add_sinks_for_all_detecting_regions
-from ...gadget_web_fire import expand_all_gadgets
 from ...graph import GadgetGraph
 from ...web import compute_stabilisers, Pauli, PauliWeb
 from .enumeration import _smallest_size_iteration
-from ... import gadgets_to_signatures, Signature
+from ... import Signature
 
 ET = Tuple[int, int]
 
@@ -76,16 +76,17 @@ def _add_gadgets(dg: GadgetGraph) -> None:
         dg.add_edge_flip_gadgets(edge)
 
 def _construct_signatures(g: GraphS, stabiliser_rref: GF2, boundaries_to_idx: Mapping[int, int],
-                          num_boundaries: int, quiet: bool = True) -> Tuple[AugmentedStabilisers, List[GF2], int]:
+                          num_boundaries: int) -> Tuple[AugmentedStabilisers, List[GF2], int]:
     gadget_graph = GadgetGraph.from_graph(g)
     add_sinks_for_all_detecting_regions(gadget_graph)
     sink_id_to_idx, num_sinks = _index_graph_sinks(gadget_graph)
 
     _add_gadgets(gadget_graph)
-    expand_all_gadgets(gadget_graph, quiet=quiet)
+    signatures = compute_signatures_for_gadgets(gadget_graph, gadget_graph.gadgets().keys())
+    # Remove trivial signatures # TODO remove once somewhere...
+    signatures = {_id: signature for _id, signature in signatures.items() if len(signature.boundaries) > 0 or len(signature.sinks) > 0}
 
     stabs = AugmentedStabilisers(stabiliser_rref, num_sinks)
-    signatures = gadgets_to_signatures(gadget_graph, gadget_graph.gadgets().keys())
     sig_nf = _calculate_signature_normal_forms(signatures, stabs, boundaries_to_idx, num_boundaries, sink_id_to_idx, num_sinks)
 
     return stabs, sig_nf, num_sinks
@@ -120,10 +121,10 @@ def is_fault_equivalent(g1: GraphS, g2: GraphS, quiet: bool = True) -> bool:
     stabiliser_rref = _stabiliser_rref(stabilisers, g1_boundaries_to_idx)
 
     if not quiet: print("Constructing signatures of g1...")
-    g1_stabs, g1_sig_nf, g1_num_sinks = _construct_signatures(g1, stabiliser_rref, g1_boundaries_to_idx, g1_num_boundaries, quiet=quiet)
+    g1_stabs, g1_sig_nf, g1_num_sinks = _construct_signatures(g1, stabiliser_rref, g1_boundaries_to_idx, g1_num_boundaries)
 
     if not quiet: print("Constructing signatures of g2...")
-    g2_stabs, g2_sig_nf, g2_num_sinks = _construct_signatures(g2, stabiliser_rref, g2_boundaries_to_idx, g2_num_boundaries, quiet=quiet)
+    g2_stabs, g2_sig_nf, g2_num_sinks = _construct_signatures(g2, stabiliser_rref, g2_boundaries_to_idx, g2_num_boundaries)
 
     if not quiet: print("Checking if g1 -> g2 is fault bounded...")
     augmented_g1_sig_nf = _add_boundary_signatures(g1_stabs, g1_sig_nf, g1_num_boundaries, g1_num_sinks)
