@@ -14,6 +14,9 @@ class GadgetSignature(NamedTuple):
     boundaries: Mapping[int, Pauli]
     sinks: Mapping[int, bool]
 
+    def is_trivial(self) -> bool:
+        return len(self.boundaries) == 0 or len(self.sinks) == 0
+
 def gadgets_to_signatures(g: GadgetGraph, gadget_ids: Iterable[int]) -> Mapping[int, GadgetSignature]:
     b_vertices = [v for v in g.vertices() if g.type(v) == VertexType.BOUNDARY]
 

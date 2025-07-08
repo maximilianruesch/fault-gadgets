@@ -83,7 +83,7 @@ def _construct_signatures(g: GraphS, stabiliser_rref: GF2, boundaries_to_idx: Ma
     _add_gadgets(gadget_graph)
     signatures = compute_signatures_for_gadgets(gadget_graph, gadget_graph.gadgets().keys())
     # Remove trivial signatures # TODO remove once somewhere...
-    signatures = {_id: signature for _id, signature in signatures.items() if len(signature.boundaries) > 0 or len(signature.sinks) > 0}
+    signatures = { _id: signature for _id, signature in signatures.items() if not signature.is_trivial() }
 
     stabs = AugmentedStabilisers(stabiliser_rref, num_sinks)
     sig_nf = _calculate_signature_normal_forms(signatures, stabs, boundaries_to_idx, num_boundaries, sink_id_to_idx, num_sinks)
