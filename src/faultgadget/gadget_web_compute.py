@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Mapping, Iterable, NamedTuple, Dict, Tuple, List, Set
+from typing import Mapping, Iterable, NamedTuple, Dict, Tuple, List, Set, Iterator
 
 import numpy as np
 from galois import GF2
@@ -7,7 +7,7 @@ from galois import GF2
 from pyzx import Mat2, VertexType, spider_simp
 from pyzx.graph.graph_s import GraphS
 from pyzx.linalg import Z2
-from . import SinkType, Signature
+from .signature import Signature
 from .web import PauliWeb, to_red_green_graphlike, determine_ordering, create_firing_verification, \
     convert_firing_assignment_to_web, Pauli
 from .graph import GadgetGraph, Nodes
@@ -87,6 +87,42 @@ class GadgetPauliWeb(NamedTuple):
 
         return GadgetPauliWeb(es, z_gadget, x_gadgets, z_sinks, x_sinks)
 
+def _firing_assignments_for_gadgets(g: GraphS, nodes: Nodes, ordering: GraphOrdering, gadget_ids: Iterable[int]) -> Iterator[Tuple[int, List[Z2]]]:
+    """
+    Computes firing assignments for the given graph where sinks and gadget spawns must already be boundaries.
+
+    TODO remove tight dependency on gadget formalism and assert relevant vertices are already boundaries
+    """
+    m_d = GF2(create_firing_verification(g, ordering).data)
+    sols_basis_galois = m_d.null_space().transpose()
+    sols_basis = Mat2(sols_basis_galois.tolist())
+
+    spawns = [nodes.gadgets[gadget_id].spawn for gadget_id in gadget_ids]
+    # A restriction of the solution basis focused on the entries for Z-edges on gadget spawns.
+    # Contains one additional entry for restricting X-edges on the gadget to be analyzed.
+    # Dimension: (number_gadgets + 1) x (web solution vector count)
+    spawn_restricted_basis = []
+    for spawn in spawns:
+        spawn_restricted_basis.append(sols_basis.data[ordering.ord(list(g.neighbors(spawn))[0])])
+    for sink_nodes in nodes.sinks.values():
+        offset = 0 if g.type(sink_nodes.gate) == VertexType.X else len(ordering.z_boundaries)
+        spawn_restricted_basis.append(sols_basis.data[ordering.ord(list(g.neighbors(sink_nodes.end))[0]) + offset])
+    spawn_restricted_basis.append([])
+
+    for gadget_id in gadget_ids:
+        spawn = nodes.gadgets[gadget_id].spawn
+        # Replace X constraint only for current gadget spawn
+        x_constraint_index = ordering.ord(list(g.neighbors(spawn))[0]) + len(ordering.z_boundaries)
+        spawn_restricted_basis[-1] = sols_basis.data[x_constraint_index]
+
+        b = Mat2.unit_vector(len(spawns) + len(nodes.sinks) + 1, spawns.index(spawn))
+        basis_sol = Mat2(spawn_restricted_basis).solve(b)
+        if basis_sol is None:
+           raise AssertionError(f"No valid assignment in basis found for gadget ID {gadget_id}!")
+        firing_assignment = np.dot(np.array(sols_basis.data), np.array(basis_sol.data)) % 2
+
+        yield gadget_id, firing_assignment.flatten().tolist()
+
 def compute_web_for_gadget(graph: GadgetGraph, gadget_id: int) -> GadgetPauliWeb:
     return compute_webs_for_gadgets(graph, [gadget_id])[gadget_id]
 
@@ -97,10 +133,8 @@ def compute_webs_for_gadgets(graph: GadgetGraph, gadget_ids: Iterable[int]) -> M
     """
     g, nodes = graph.realise()
 
-    spawns = [nodes.gadgets[gadget_id].spawn for gadget_id in gadget_ids]
-    for spawn in spawns:
-        g.set_type(spawn, VertexType.BOUNDARY)
-
+    for gadget_id in gadget_ids:
+        g.set_type(nodes.gadgets[gadget_id].spawn, VertexType.BOUNDARY)
     for sink_nodes in nodes.sinks.values():
         g.set_type(sink_nodes.end, VertexType.BOUNDARY)
 
@@ -108,35 +142,9 @@ def compute_webs_for_gadgets(graph: GadgetGraph, gadget_ids: Iterable[int]) -> M
     additional_nodes = to_red_green_graphlike(g)
     ordering = determine_ordering(g)
 
-    m_d = GF2(create_firing_verification(g, ordering).data)
-    sols_basis_galois = m_d.null_space().transpose()
-    sols_basis = Mat2(sols_basis_galois.tolist())
-
-    # A restriction of the solution basis focused on the entries for Z-edges on gadget spawns.
-    # Contains one additional entry for restricting X-edges on the gadget to be analyzed.
-    # Dimension: (number_gadgets + 1) x (web solution vector count)
-    spawn_restricted_basis = []
-    for spawn in spawns:
-        spawn_restricted_basis.append(sols_basis.data[ordering.ord(list(g.neighbors(spawn))[0])])
-    for sink_id, sink in graph.sinks().items():
-        offset = 0 if sink.type == SinkType.X else len(ordering.z_boundaries)
-        spawn_restricted_basis.append(sols_basis.data[ordering.ord(list(g.neighbors(nodes.sinks[sink_id].end))[0]) + offset])
-    spawn_restricted_basis.append([])
-
     webs = dict()
-    for gadget_id in gadget_ids:
-        spawn = nodes.gadgets[gadget_id].spawn
-        # Replace X constraint only for current gadget spawn
-        x_constraint_index = ordering.ord(list(g.neighbors(spawn))[0]) + len(ordering.z_boundaries)
-        spawn_restricted_basis[-1] = sols_basis.data[x_constraint_index]
-
-        b = Mat2.unit_vector(len(spawns) + len(graph.sinks()) + 1, spawns.index(spawn))
-        basis_sol = Mat2(spawn_restricted_basis).solve(b)
-        if basis_sol is None:
-           raise AssertionError(f"No valid assignment in basis found for gadget ID {gadget_id}!")
-        firing_assignment = np.dot(np.array(sols_basis.data), np.array(basis_sol.data)) % 2
-
-        web = convert_firing_assignment_to_web(g, ordering, firing_assignment.flatten().tolist())
+    for gadget_id, firing_assignment in _firing_assignments_for_gadgets(g, nodes, ordering, gadget_ids):
+        web = convert_firing_assignment_to_web(g, ordering, firing_assignment)
         additional_nodes.remove_from(g, web)
         webs[gadget_id] = GadgetPauliWeb.extract(web, nodes)
 
@@ -197,7 +205,6 @@ def compute_signatures_for_gadgets(graph: GadgetGraph, gadget_ids: Iterable[int]
     spawns = [nodes.gadgets[gadget_id].spawn for gadget_id in gadget_ids]
     for spawn in spawns:
         g.set_type(spawn, VertexType.BOUNDARY)
-
     sink_end_to_id = { sink_nodes.end: sink_id for sink_id, sink_nodes in nodes.sinks.items() }
     for end in sink_end_to_id.keys():
         g.set_type(end, VertexType.BOUNDARY)
@@ -206,35 +213,8 @@ def compute_signatures_for_gadgets(graph: GadgetGraph, gadget_ids: Iterable[int]
     _to_more_efficient_graph_like(g)
     ordering = determine_ordering(g)
 
-    m_d = GF2(create_firing_verification(g, ordering).data)
-    sols_basis_galois = m_d.null_space().transpose()
-    sols_basis = Mat2(sols_basis_galois.tolist())
-
-    # A restriction of the solution basis focused on the entries for Z-edges on gadget spawns.
-    # Contains one additional entry for restricting X-edges on the gadget to be analyzed.
-    # Dimension: (number_gadgets + 1) x (web solution vector count)
-    spawn_restricted_basis = []
-    for spawn in spawns:
-        spawn_restricted_basis.append(sols_basis.data[ordering.ord(list(g.neighbors(spawn))[0])])
-    for sink_id, sink in graph.sinks().items():
-        offset = 0 if sink.type == SinkType.X else len(ordering.z_boundaries)
-        spawn_restricted_basis.append(sols_basis.data[ordering.ord(list(g.neighbors(nodes.sinks[sink_id].end))[0]) + offset])
-    spawn_restricted_basis.append([])
-
     signatures = dict()
-    for gadget_id in gadget_ids:
-        spawn = nodes.gadgets[gadget_id].spawn
-        # Replace X constraint only for current gadget spawn
-        x_constraint_index = ordering.ord(list(g.neighbors(spawn))[0]) + len(ordering.z_boundaries)
-        spawn_restricted_basis[-1] = sols_basis.data[x_constraint_index]
-
-        b = Mat2.unit_vector(len(spawns) + len(graph.sinks()) + 1, spawns.index(spawn))
-        basis_sol = Mat2(spawn_restricted_basis).solve(b)
-        if basis_sol is None:
-           raise AssertionError(f"No valid assignment in basis found for gadget ID {gadget_id}!")
-        firing_assignment = np.dot(np.array(sols_basis.data), np.array(basis_sol.data)) % 2
-
-        signatures[gadget_id] = _convert_firing_assignment_to_signature(ordering, set(spawns), sink_end_to_id,
-                                                                        firing_assignment.flatten().tolist())
+    for gadget_id, firing_assignment in _firing_assignments_for_gadgets(g, nodes, ordering, gadget_ids):
+        signatures[gadget_id] = _convert_firing_assignment_to_signature(ordering, set(spawns), sink_end_to_id, firing_assignment)
 
     return signatures
