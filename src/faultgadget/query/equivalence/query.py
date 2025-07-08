@@ -4,27 +4,19 @@ import numpy as np
 from galois import GF2
 
 from pyzx import VertexType
-from pyzx.graph.base import upair
 from pyzx.graph.graph_s import GraphS
 from ...graph_helpers import add_sinks_for_all_detecting_regions
 from ...gadget_web_fire import expand_all_gadgets
 from ...graph import GadgetGraph
 from ...web import compute_stabilisers, Pauli, PauliWeb
 from .enumeration import _smallest_size_iteration
-from .. import gadgets_to_signatures
+from ... import gadgets_to_signatures, Signature
 
 ET = Tuple[int, int]
 
-def _index_graph_boundaries(g: GraphS) -> Tuple[Mapping[ET, int], int]:
-    boundaries_to_neighbors = { v: list(g.neighbors(v))[0] for v in g.vertices() if g.type(v) == VertexType.BOUNDARY }
-    boundaries_to_idx = {}
-    for i, b in enumerate(boundaries_to_neighbors.items()):
-        if g.type(b[1]) == VertexType.BOUNDARY: # boundary <-> boundary
-            boundaries_to_idx[b] = i
-        else:
-            boundaries_to_idx[upair(*b)] = i
-
-    return boundaries_to_idx, len(boundaries_to_idx)
+def _index_graph_boundaries(g: GraphS) -> Tuple[Mapping[int, int], int]:
+    boundaries = [v for v in g.vertices() if g.type(v) == VertexType.BOUNDARY]
+    return { b: i for i, b in enumerate(boundaries)}, len(boundaries)
 
 def _index_graph_sinks(g: GadgetGraph) -> Tuple[Mapping[int, int], int]:
     sink_id_to_idx = { s: i for i, s in enumerate(g.sinks().keys()) }
@@ -44,30 +36,32 @@ class AugmentedStabilisers:
                 normalised_sig += stab
         return normalised_sig
 
-def _stabiliser_rref(stabilisers: List[PauliWeb], boundaries_to_idx: Mapping[ET, int]) -> GF2:
+def _stabiliser_rref(stabilisers: List[PauliWeb], boundaries_to_idx: Mapping[int, int]) -> GF2:
     num_boundaries = len(boundaries_to_idx)
     np_stabilisers = np.zeros((len(stabilisers), num_boundaries * 2), dtype=int)
     for i, stab in enumerate(stabilisers):
-        for edge, idx in boundaries_to_idx.items():
-            if stab[edge] == Pauli.Z or stab[edge] == Pauli.Y: np_stabilisers[i, idx] = 1
-            if stab[edge] == Pauli.X or stab[edge] == Pauli.Y: np_stabilisers[i, idx + num_boundaries] = 1
+        for boundary, idx in boundaries_to_idx.items():
+            paulis = [p for e, p in stab.half_edges().items() if e[0] == boundary]
+            assert len(paulis) <= 1
+            pauli = paulis[0] if len(paulis) == 1 else None
+            if pauli == Pauli.Z or pauli == Pauli.Y: np_stabilisers[i, idx] = 1
+            if pauli == Pauli.X or pauli == Pauli.Y: np_stabilisers[i, idx + num_boundaries] = 1
 
     return GF2(np_stabilisers).row_reduce(eye='left')
 
-def _calculate_signature_normal_forms(g: GadgetGraph, stabs: AugmentedStabilisers,
-                                      boundaries_to_idx: Mapping[ET, int], num_boundaries: int,
-                                      sink_id_to_idx: Mapping[int, int], num_sinks: int) -> List[GF2]:
-    signatures = gadgets_to_signatures(g, g.gadgets().keys(), boundaries_to_idx, sink_id_to_idx)
-
+def _calculate_signature_normal_forms(signatures: Mapping[int, Signature], stabs: AugmentedStabilisers,
+                                      boundaries_to_idx: Mapping[int, int], num_boundaries: int,
+                                      sink_to_idx: Mapping[int, int], num_sinks: int) -> List[GF2]:
     signature_normal_forms: List[GF2] = []
     for i, sig in enumerate(signatures.values()):
         np_sig = GF2.Zeros(num_boundaries * 2 + num_sinks)
-        for j, pauli in enumerate(sig.boundaries):
-            if pauli == Pauli.Z or pauli == Pauli.Y: np_sig[j] = 1
-            if pauli == Pauli.X or pauli == Pauli.Y: np_sig[j + num_boundaries] = 1
+        for boundary, pauli in sig.boundaries.items():
+            idx = boundaries_to_idx[boundary]
+            if pauli == Pauli.Z or pauli == Pauli.Y: np_sig[idx] = 1
+            if pauli == Pauli.X or pauli == Pauli.Y: np_sig[idx + num_boundaries] = 1
 
-        for k, active in enumerate(sig.sinks):
-            if active: np_sig[k + num_boundaries * 2] = 1
+        for sink, active in sig.sinks.items():
+            if active: np_sig[sink_to_idx[sink] + num_boundaries * 2] = 1
 
         signature_normal_forms.append(stabs.normalise_signature(np_sig))
 
@@ -81,7 +75,7 @@ def _add_gadgets(dg: GadgetGraph) -> None:
 
         dg.add_edge_flip_gadgets(edge)
 
-def _construct_signatures(g: GraphS, stabiliser_rref: GF2, boundaries_to_idx: Mapping[ET, int],
+def _construct_signatures(g: GraphS, stabiliser_rref: GF2, boundaries_to_idx: Mapping[int, int],
                           num_boundaries: int, quiet: bool = True) -> Tuple[AugmentedStabilisers, List[GF2], int]:
     gadget_graph = GadgetGraph.from_graph(g)
     add_sinks_for_all_detecting_regions(gadget_graph)
@@ -91,8 +85,8 @@ def _construct_signatures(g: GraphS, stabiliser_rref: GF2, boundaries_to_idx: Ma
     expand_all_gadgets(gadget_graph, quiet=quiet)
 
     stabs = AugmentedStabilisers(stabiliser_rref, num_sinks)
-    sig_nf = _calculate_signature_normal_forms(gadget_graph, stabs,
-                                               boundaries_to_idx, num_boundaries, sink_id_to_idx, num_sinks)
+    signatures = gadgets_to_signatures(gadget_graph, gadget_graph.gadgets().keys())
+    sig_nf = _calculate_signature_normal_forms(signatures, stabs, boundaries_to_idx, num_boundaries, sink_id_to_idx, num_sinks)
 
     return stabs, sig_nf, num_sinks
 
