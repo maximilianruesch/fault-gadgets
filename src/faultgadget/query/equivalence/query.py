@@ -29,11 +29,12 @@ class AugmentedStabilisers:
     def __init__(self, stabiliser_rref: GF2, num_sinks: int):
         self._rref = GF2(np.hstack([stabiliser_rref, GF2.Zeros((len(stabiliser_rref), num_sinks))]))
         self._indices = np.argmax(self._rref, axis=1).view(np.ndarray)
+        self._rref_and_indices = [(stab, idx) for stab, idx in zip(self._rref, self._indices) if stab[idx] == 1]
 
-    def normalise_signature(self, sig: GF2) -> GF2:
+    def normalise_signature(self, sig: GF2) -> GF2: # TODO bulk normalise signatures
         normalised_sig = sig
-        for stab, idx in zip(self._rref, self._indices):
-            if stab[idx] == 1 and sig[idx] == 1:
+        for stab, idx in self._rref_and_indices:
+            if sig[idx] == 1:
                 normalised_sig += stab
         return normalised_sig
 
