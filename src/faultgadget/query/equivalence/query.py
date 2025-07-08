@@ -93,7 +93,7 @@ def _construct_signatures(g: GraphS, stabiliser_rref: GF2, boundaries_to_idx: Ma
 
 def _add_boundary_signatures(stabs: AugmentedStabilisers, sig_nf: List[GF2], num_boundaries: int, num_sinks: int) -> List[GF2]:
     augmented_sig_nf = sig_nf.copy()
-    for i in range(num_boundaries): # TODO remove non-unique elements
+    for i in range(num_boundaries):
         # Z Signature
         x_atomic_sig = GF2.Zeros(num_boundaries * 2 + num_sinks)
         x_atomic_sig[i] = 1
@@ -105,7 +105,7 @@ def _add_boundary_signatures(stabs: AugmentedStabilisers, sig_nf: List[GF2], num
         # Y Signature
         augmented_sig_nf.append(stabs.normalise_signature(x_atomic_sig + z_atomic_sig))
 
-    return augmented_sig_nf
+    return [GF2(l) for l in np.unique(augmented_sig_nf, axis=0)]
 
 def is_fault_equivalent(g1: GraphS, g2: GraphS, quiet: bool = True) -> bool:
     """
