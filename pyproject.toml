@@ -1,3 +1,19 @@
 [project]
 name = "pyzx-faultgadget"
 version = "0.1.0"
+
+description = "A toolbox for working with faults, fault models and related constructions in the ZX-calculus."
+readme = "README.md"
+license = "Apache-2.0"
+keywords = ["zx-calculus", "pyzx", "faults"]
+
+requires-python = ">= 3.12"
+dependencies = [
+  "numpy",
+  "galois",
+  "tqdm",
+]
+
+[dependency-groups]
+test = ["pytest"]
+
