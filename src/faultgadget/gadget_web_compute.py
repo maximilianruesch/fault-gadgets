@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Mapping, Iterable, NamedTuple, Dict, Tuple, List, Iterator
+from typing import Mapping, Iterable, NamedTuple, Dict, Tuple, List, Iterator, Optional
 
 import numpy as np
 from galois import GF2
@@ -150,11 +150,12 @@ def compute_webs_for_gadgets(graph: GadgetGraph, gadget_ids: Iterable[int]) -> M
 
     return webs
 
-def compute_signatures_for_gadgets(graph: GadgetGraph, gadget_ids: Iterable[int]) -> Mapping[int, GadgetSignature]:
+def compute_signatures_for_gadgets(graph: GadgetGraph, gadget_ids: Optional[Iterable[int]] = None) -> Mapping[int, GadgetSignature]:
     """
     Computes a Pauli web for the given gadget in the graph context.
     A valid web for the gadget is one that features a Z-type edge between the gadgets spawn and distributor.
     """
+    gadget_ids = gadget_ids or graph.gadgets().keys()
     g, nodes = graph.realise()
 
     spawns = [nodes.gadgets[gadget_id].spawn for gadget_id in gadget_ids]

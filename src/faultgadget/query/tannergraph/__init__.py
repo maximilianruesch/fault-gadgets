@@ -1,1 +1,1 @@
-from .query import extract_tanner_graph
+from .query import tanner_graph
