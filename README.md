@@ -45,6 +45,8 @@ This nuisance will be removed as soon as possible!
 ## Documentation
 There is no documentation yet, but you may have a look into the `tests` directory to get a glimpse of how the package may be used, or browse the files yourself.
 
+You may also want to look at the `demo` folder, where you will find a few notebooks highlighting the key features of this library.
+
 ## Running tests
 Before running tests for the first time, you need to install the (usually optional) dependencies.
 For this, simply run
