@@ -1,11 +1,14 @@
-# Fault gadgets for PyZX
+# `faultgadgets` for PyZX
 
-A library to handle fault gadgets and associated computations including:
-- Computing stabilisers and detecting regions of ZX-diagrams
+A library to handle faults, fault models and related constructions in ZX-diagrams including (but not limited to):
+- Computing stabilisers and detecting regions
 - Determining signatures of faults
 - Extracting the distance of a ZX-diagram
 - Checking if a ZX-rewrite is fault-equivalent
 - etc.
+
+Do note that the library is still in early development.
+If you encounter any bugs, feel free to open an issue!
 
 ## Installation
 
@@ -61,3 +64,6 @@ pytest
 in the main directory.
 
 If you encounter difficulties running the tests, make sure your installed packages are up to date and that you have all the packages listed in the `pyproject.toml`.
+
+## Acknowledging the use of `faultgadgets`
+If you use this library for something cool (up to your interpretation), please acknowledge the library by including a link to this repository.
