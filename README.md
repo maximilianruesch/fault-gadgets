@@ -23,12 +23,27 @@ conda activate "faultgadgets"
     def clone(self, instance: Optional['GraphS'] = None) -> 'GraphS':
         cpy = instance or GraphS()
     ```
-4. Install this library with `pip install -r requirements.txt -e .` in the root directory.
+4. Install this library with `pip install -e .` in the root directory.
 
 If you do not want to make any changes in the library, you may also omit the "-e" flag in the last command.
+Currently, the library depends on a slightly modified version of PyZX found under [`maximilianruesch/pyzx`](https://github.com/maximilianruesch/pyzx/tree/fault-gadget-support).
+If for some reason this does not work for you, please read the section below.
 
-Then have fun figuring out the (unstable) API.
-You could look at tests in `tests` for some hints on how they are used, or browse the files yourself.
+### I want to use my own PyZX (or yours is outdated)
+
+1. Uninstall the current pyzx package: `pip uninstall pyzx`
+2. Obtain PyZX, e.g. via `git clone https://github.com/zxcalc/pyzx lib/pyzx`
+3. Install PyZX as editable, e.g. via `pip install -e lib/pyzx`
+4. Amend `lib/pyzx/pyzx/graph/graph_s.py` by changing the `clone` function to have this header:
+    ```python
+    def clone[T: GraphS](self, instance: Optional[T] = None) -> T:
+        cpy = instance or GraphS()
+    ```
+There is ongoing work to make the use with PyZX easier, but sometimes patches are simply required.
+This nuisance will be removed as soon as possible!
+
+## Documentation
+There is no documentation yet, but you may have a look into the `tests` directory to get a glimpse of how the package may be used, or browse the files yourself.
 
 ## Running tests
 Before running tests for the first time, you need to install the (usually optional) dependencies.
