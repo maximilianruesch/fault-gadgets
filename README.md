@@ -13,20 +13,14 @@ If you encounter any bugs, feel free to open an issue!
 ## Installation
 
 The project requires at least Python version `>= 3.12`.
-It is recommended that you use e.g. `conda` to create an isolated environment, so e.g.
+It is recommended that you use e.g. `conda` to create an isolated environment, so
 ```shell
 conda create --name "faultgadgets" python=3.12
 conda activate "faultgadgets"
 ```
 
 1. Clone this repository and change into the directory of this file
-2. Clone [`zxcalc/pyzx`](https://github.com/zxcalc/pyzx) into `lib/pyzx`
-3. Amend `lib/pyzx/pyzx/graph/graph_s.py` by changing the `clone` function to have this header:
-    ```python
-    def clone(self, instance: Optional['GraphS'] = None) -> 'GraphS':
-        cpy = instance or GraphS()
-    ```
-4. Install this library with `pip install -e .` in the root directory.
+2. Install this library with `pip install -e .` in the root directory.
 
 If you do not want to make any changes in the library, you may also omit the "-e" flag in the last command.
 Currently, the library depends on a slightly modified version of PyZX found under [`maximilianruesch/pyzx`](https://github.com/maximilianruesch/pyzx/tree/fault-gadget-support).
