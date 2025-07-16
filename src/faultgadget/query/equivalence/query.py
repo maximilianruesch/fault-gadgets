@@ -24,7 +24,7 @@ from ...graph_helpers import add_sinks_for_all_detecting_regions
 from ...graph import GadgetGraph
 from ...web import compute_stabiliser_signatures
 from .enumeration import _smallest_size_iteration
-from ...signature import Signature, GadgetSignature
+from ...signature import GadgetSignature
 from ...pauli import Pauli
 
 ET = Tuple[int, int]
