@@ -75,9 +75,10 @@ def _smallest_size_iteration(g1_sig_nf: List[GF2], g2_sig_nf: List[GF2],
             if combined_sig & g1_sink_mask > 0:
                 continue # Detectable g1 signatures will never be queried, save space here
 
-            if combined_sig not in g1_lookup:
+            combined_sig_no_sinks = combined_sig >> g1_sinks
+            if combined_sig_no_sinks not in g1_lookup:
                 g1_new_signatures.append(combined_sig)
-                g1_lookup[combined_sig] = max_size
+                g1_lookup[combined_sig_no_sinks] = max_size
         g1_last_new_signatures = g1_new_signatures
         if not quiet: tqdm.write(f"Populating g1 lookup took {time.time() - g1_time}s.")
 
