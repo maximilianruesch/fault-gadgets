@@ -44,6 +44,9 @@ class Stabilisers:
         self._rref = stabiliser_rref
         self._indices = self._rref.argmax(axis=1).view(np.ndarray)
 
+    def normalise_signatures(self, sigs: GF2) -> GF2:
+        return sigs + sigs[:, self._indices] @ self._rref
+
 class AugmentedStabilisers:
     _rref: GF2
     _indices: np.ndarray
@@ -116,22 +119,25 @@ def _construct_signatures(g: GraphS, stabilisers: Stabilisers, boundaries_to_idx
 
     return stabs, sig_nf, num_sinks
 
-def _add_boundary_signatures(stabs: AugmentedStabilisers, sig_nf: List[GF2], num_boundaries: int, num_sinks: int) -> List[GF2]: # TODO share boundary signatures and hstack sinks on afterwards
+def _boundary_signatures(stabs: Stabilisers, num_boundaries: int) -> GF2:
     sigs = []
     for i in range(num_boundaries):
         # Z Signature
-        x_atomic_sig = GF2.Zeros(num_boundaries * 2 + num_sinks)
+        x_atomic_sig = GF2.Zeros(num_boundaries * 2)
         x_atomic_sig[i] = 1
         sigs.append(x_atomic_sig)
         # X Signature
-        z_atomic_sig = GF2.Zeros(num_boundaries * 2 + num_sinks)
+        z_atomic_sig = GF2.Zeros(num_boundaries * 2)
         z_atomic_sig[i + num_boundaries] = 1
         sigs.append(z_atomic_sig)
         # Y Signature
         sigs.append(x_atomic_sig + z_atomic_sig)
 
+    return stabs.normalise_signatures(GF2(sigs))
+
+def _add_boundary_signatures(sig_nf: List[GF2], boundary_signatures: GF2,  num_sinks: int) -> List[GF2]:
     augmented_sig_nf = sig_nf.copy()
-    augmented_sig_nf.extend(stabs.normalise_signatures(GF2(sigs)))
+    augmented_sig_nf.extend(np.hstack([boundary_signatures, GF2.Zeros((len(boundary_signatures), num_sinks))]))
 
     return [GF2(l) for l in np.unique(augmented_sig_nf, axis=0)]
 
@@ -147,6 +153,9 @@ def is_fault_equivalent(g1: GraphS, g2: GraphS, quiet: bool = True) -> bool:
     if not quiet: print("Computing stabilisers...")
     stabilisers = _stabilisers(g1, g1_boundaries_to_idx)
 
+    if not quiet: print("Computing boundary signatures...")
+    boundary_signatures = _boundary_signatures(stabilisers, g1_num_boundaries)
+
     if not quiet: print("Constructing signatures of g1...")
     g1_stabs, g1_sig_nf, g1_num_sinks = _construct_signatures(g1, stabilisers, g1_boundaries_to_idx, g1_num_boundaries)
 
@@ -154,12 +163,12 @@ def is_fault_equivalent(g1: GraphS, g2: GraphS, quiet: bool = True) -> bool:
     g2_stabs, g2_sig_nf, g2_num_sinks = _construct_signatures(g2, stabilisers, g2_boundaries_to_idx, g2_num_boundaries)
 
     if not quiet: print("Checking if g1 -> g2 is fault bounded...")
-    augmented_g1_sig_nf = _add_boundary_signatures(g1_stabs, g1_sig_nf, g1_num_boundaries, g1_num_sinks)
+    augmented_g1_sig_nf = _add_boundary_signatures(g1_sig_nf, boundary_signatures, g1_num_sinks)
     g1_g2_weight = _smallest_size_iteration(augmented_g1_sig_nf, g2_sig_nf, g1_num_sinks, g2_num_boundaries, g2_num_sinks, quiet=quiet)
     if g1_g2_weight is not None:
         return False
 
     if not quiet: print("Checking if g2 -> g1 is fault bounded...")
-    augmented_g2_sig_nf = _add_boundary_signatures(g2_stabs, g2_sig_nf, g2_num_boundaries, g2_num_sinks)
+    augmented_g2_sig_nf = _add_boundary_signatures(g2_sig_nf, boundary_signatures, g2_num_sinks)
     g2_g1_weight = _smallest_size_iteration(augmented_g2_sig_nf, g1_sig_nf, g2_num_sinks, g1_num_boundaries, g1_num_sinks, quiet=quiet)
     return g2_g1_weight is None
