@@ -165,7 +165,7 @@ def _place_node_between(g: GraphS, _type: VertexType, n1: int, n2: int) -> int:
 
     return node
 
-def _euler_expand_edges(g: GraphS, nodes: AdditionalNodes) -> None:
+def _euler_expand_edges(g: GraphS, nodes: Optional[AdditionalNodes] = None) -> None:
     """
     A cut down version of pyzx.euler_expansion which does not add global scalars and does not prematurely 'merge' spiders
     """
@@ -201,12 +201,14 @@ def _euler_expand_edges(g: GraphS, nodes: AdditionalNodes) -> None:
         g.set_edge_type((v1, w1), v1_edge_type)
         g.set_edge_type((w3, v2), v2_edge_type)
 
-        nodes.add_expanded_hadamard(ExpandedHadamard(w1, w2, w3, origin=v, flipped_decomposition=flip))
+        if nodes is not None:
+            nodes.add_expanded_hadamard(ExpandedHadamard(w1, w2, w3, origin=v, flipped_decomposition=flip))
 
     for v1, v2 in match_hadamard_edge(g):
         flip = g.type(v1) == g.type(v2) and g.type(v1) == VertexType.Z
         w1, w2, w3 = _decompose_between(v1, v2, flip)
-        nodes.add_expanded_hadamard(ExpandedHadamard(w1, w2, w3, origin=None, flipped_decomposition=flip))
+        if nodes is not None:
+            nodes.add_expanded_hadamard(ExpandedHadamard(w1, w2, w3, origin=None, flipped_decomposition=flip))
 
 def _ensure_red_green_boundaries(g: GraphS) -> Iterable[int]:
     new_nodes = []
@@ -271,5 +273,6 @@ def to_irreversible_red_green_form(g: GraphS) -> None:
     Best suited for algorithms that only require easy read-off of stabilisers.
     """
     assert g.get_auto_simplify()
+    _euler_expand_edges(g) # TODO find a less bloaty method of handling hadamard edges
     spider_simp(g, quiet=True)
     _ensure_red_green_boundaries(g)
