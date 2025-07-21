@@ -48,7 +48,7 @@ def _smallest_size_iteration(g1_sig_nf: List[GF2], g2_sig_nf: List[GF2],
     :returns: the size of such a combination or `None` if no such combination exists.
     """
 
-    g1_lookup = dict()
+    g1_lookup = { 0: 0 } # The trivial signature requires zero signatures to generate
     g2_lookup = dict()
 
     if len(g2_sig_nf) == 0:

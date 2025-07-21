@@ -158,9 +158,11 @@ def is_fault_equivalent(g1: GraphS, g2: GraphS, quiet: bool = True) -> bool:
 
     if not quiet: print("Constructing signatures of g1...")
     g1_stabs, g1_sig_nf, g1_num_sinks = _construct_signatures(g1, stabilisers, g1_boundaries_to_idx, g1_num_boundaries)
+    if not quiet: print(f"Retrieved {len(g1_sig_nf)} signatures for g1!")
 
     if not quiet: print("Constructing signatures of g2...")
     g2_stabs, g2_sig_nf, g2_num_sinks = _construct_signatures(g2, stabilisers, g2_boundaries_to_idx, g2_num_boundaries)
+    if not quiet: print(f"Retrieved {len(g2_sig_nf)} signatures for g2!")
 
     if not quiet: print("Checking if g1 -> g2 is fault bounded...")
     augmented_g1_sig_nf = _add_boundary_signatures(g1_sig_nf, boundary_signatures, g1_num_sinks)

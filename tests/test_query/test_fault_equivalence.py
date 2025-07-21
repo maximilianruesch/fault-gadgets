@@ -159,3 +159,21 @@ def test_cat_state_decomposition_in_context(n):
     _add_cz_layer(g2, new_bs)
 
     assert is_fault_equivalent(g1, g2, quiet=False)
+
+def test_cnot_fuse():
+    """
+    Fusing a series of CNOT gates on the control qubits is NOT a fault equivalent rewrite.
+    Based on https://arxiv.org/pdf/2410.17240.
+    """
+
+    c = zx.Circuit(5)
+    c.add_gate("CNOT", 0, 1)
+    c.add_gate("CNOT", 0, 2)
+    c.add_gate("CNOT", 0, 3)
+    c.add_gate("CNOT", 0, 4)
+    g1 = c.to_graph()
+
+    g2 = g1.copy()
+    zx.simplify.spider_simp(g2)
+
+    assert not is_fault_equivalent(g1, g2, quiet=False)
