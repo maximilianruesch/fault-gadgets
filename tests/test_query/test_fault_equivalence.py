@@ -177,3 +177,49 @@ def test_cnot_fuse():
     zx.simplify.spider_simp(g2)
 
     assert not is_fault_equivalent(g1, g2, quiet=False)
+
+def test_cnot_target_fuse_flagged():
+    """
+    Fusing a series of CNOT gates on the target qubits is a fault equivalent rewrite provided that additional flag qubits are employed.
+    Based on https://arxiv.org/pdf/2410.17240 and external contribution.
+    """
+    c1 = zx.Circuit(4)
+
+    c1.add_gate("InitAncilla", 4)
+    c1.add_gate("InitAncilla", 5)
+    c1.add_gate("H", 4)
+
+    c1.add_gate("CNOT", 5, 4)
+
+    for i in range(4):
+        c1.add_gate("CNOT", i, 4)
+
+    c1.add_gate("CNOT", 5, 4)
+
+    c1.add_gate("H", 4)
+    c1.add_gate("PostSelect", 4)
+    c1.add_gate("PostSelect", 5)
+
+    g1 = c1.to_graph(compress_rows=True)
+    zx.simplify.id_simp(g1)
+    zx.basicrules.color_change(g1, 4)
+    zx.basicrules.color_change(g1, 20)
+
+    c2 = zx.Circuit(4)
+
+    c2.add_gate("InitAncilla", 4)
+    c2.add_gate("H", 4)
+
+    for i in range(4):
+        c2.add_gate("CNOT", i, 4)
+
+    c2.add_gate("H", 4)
+    c2.add_gate("PostSelect", 4)
+
+    g2 = c2.to_graph(compress_rows=True)
+    zx.simplify.id_simp(g2)
+    zx.basicrules.color_change(g2, 4)
+    zx.basicrules.color_change(g2, 15)
+    zx.simplify.spider_simp(g2)
+
+    assert is_fault_equivalent(g1, g2, quiet=False)

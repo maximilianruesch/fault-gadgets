@@ -165,7 +165,7 @@ def _place_node_between(g: GraphS, _type: VertexType, n1: int, n2: int) -> int:
 
     return node
 
-def _euler_expand_edges(g: GraphS, nodes: Optional[AdditionalNodes] = None) -> None:
+def _euler_expand_edges(g: GraphS) -> Iterable[ExpandedHadamard]:
     """
     A cut down version of pyzx.euler_expansion which does not add global scalars and does not prematurely 'merge' spiders
     """
@@ -185,6 +185,7 @@ def _euler_expand_edges(g: GraphS, nodes: Optional[AdditionalNodes] = None) -> N
 
         return _w1, _w2, _w3
 
+    expanded_hadamards = []
     for v in list(g.vertices()):
         if g.type(v) != VertexType.H_BOX:
             continue
@@ -201,17 +202,23 @@ def _euler_expand_edges(g: GraphS, nodes: Optional[AdditionalNodes] = None) -> N
         g.set_edge_type((v1, w1), v1_edge_type)
         g.set_edge_type((w3, v2), v2_edge_type)
 
-        if nodes is not None:
-            nodes.add_expanded_hadamard(ExpandedHadamard(w1, w2, w3, origin=v, flipped_decomposition=flip))
+        expanded_hadamards.append(ExpandedHadamard(w1, w2, w3, origin=v, flipped_decomposition=flip))
 
     for v1, v2 in match_hadamard_edge(g):
         flip = g.type(v1) == g.type(v2) and g.type(v1) == VertexType.Z
         w1, w2, w3 = _decompose_between(v1, v2, flip)
-        if nodes is not None:
-            nodes.add_expanded_hadamard(ExpandedHadamard(w1, w2, w3, origin=None, flipped_decomposition=flip))
+        expanded_hadamards.append(ExpandedHadamard(w1, w2, w3, origin=None, flipped_decomposition=flip))
 
-def _ensure_red_green_boundaries(g: GraphS) -> Iterable[int]:
+    return expanded_hadamards
+
+def _ensure_red_green(g: GraphS) -> Iterable[int]:
     new_nodes = []
+    # Introduce intermediate nodes
+    for s, t in list(g.edges()):
+        if g.type(s) == g.type(t):
+            new_type = VertexType.Z if g.type(s) == VertexType.X else VertexType.X
+            new_nodes.append(_place_node_between(g, new_type, s, t))
+
     # Introduce intermediate nodes for boundary <-> boundary connections
     for s, t in list(g.edges()):
         if g.type(s) == g.type(t) and g.type(s) == VertexType.BOUNDARY:
@@ -238,7 +245,8 @@ def _ensure_red_green_boundaries(g: GraphS) -> Iterable[int]:
 def to_red_green_form(g: GraphS) -> AdditionalNodes:
     # Convert all H-edges and Hadamards to red and green spiders
     additional_nodes = AdditionalNodes.empty()
-    _euler_expand_edges(g, additional_nodes)
+    for hadamard in _euler_expand_edges(g):
+        additional_nodes.add_expanded_hadamard(hadamard)
 
     # Verify that diagram is clifford
     offending_vertices = []
@@ -256,23 +264,22 @@ def to_red_green_form(g: GraphS) -> AdditionalNodes:
         raise AssertionError(f"Given diagram is not a clifford diagram up to hadamard expansion. The following "
                              f"edges are not simple edges: {', '.join(map(str, offending_edges))}")
 
-    # Introduce intermediate nodes
-    for s, t in list(g.edges()):
-        if g.type(s) == g.type(t):
-            new_type = VertexType.Z if g.type(s) == VertexType.X else VertexType.X
-            additional_nodes.add_extra_id_node(_place_node_between(g, new_type, s, t))
-
-    for node in _ensure_red_green_boundaries(g):
+    for node in _ensure_red_green(g):
         additional_nodes.add_extra_id_node(node)
 
     return additional_nodes
 
-def to_irreversible_red_green_form(g: GraphS) -> None:
+def to_irreversible_red_green_form(g: GraphS, keep_nodes: Optional[List[int]] = None) -> None:
     """
     Modifies the given graph to be in red-green form using a procedure that is not easily reversed.
     Best suited for algorithms that only require easy read-off of stabilisers.
+
+    :param g: The graph to bring into red green form in an irreversible manner.
+    :param keep_nodes nodes that should not ever be touched / removed.
     """
+    keep_nodes = keep_nodes or []
+
     assert g.get_auto_simplify()
     _euler_expand_edges(g) # TODO find a less bloaty method of handling hadamard edges
-    spider_simp(g, quiet=True)
-    _ensure_red_green_boundaries(g)
+    spider_simp(g, matchf=lambda v: v not in keep_nodes, quiet=True)
+    _ensure_red_green(g)

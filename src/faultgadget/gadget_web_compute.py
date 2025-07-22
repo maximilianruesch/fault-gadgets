@@ -180,7 +180,7 @@ def compute_signatures_for_gadgets(graph: GadgetGraph, gadget_ids: Optional[Iter
         g.set_type(end, VertexType.BOUNDARY)
 
     # Computing all webs of all gadgets
-    to_irreversible_red_green_form(g)
+    to_irreversible_red_green_form(g, keep_nodes=[sink_nodes.gate for sink_nodes in nodes.sinks.values()])
     ordering = determine_ordering(g)
 
     signatures = dict()
