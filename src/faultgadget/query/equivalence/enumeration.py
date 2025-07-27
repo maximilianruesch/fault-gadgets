@@ -19,11 +19,7 @@ from typing import List, Optional
 
 from galois import GF2
 
-def _sig_to_int(sig: GF2) -> int:
-    out = 0
-    for bit in sig.tolist():
-        out = (out << 1) | bit
-    return out
+from ...signature import Signature
 
 def _format_sig(sig: int, boundaries: int, sinks: int) -> str:
     sig_str = format(sig, 'b').zfill(boundaries * 2 + sinks)
@@ -60,8 +56,8 @@ def _smallest_size_iteration(g1_sig_nf: List[GF2], g2_sig_nf: List[GF2],
     if not quiet: print(f"Starting iteration until {len(g2_sig_nf)}!")
     g1_last_new_signatures = [0]
     g2_last_new_detectable = [0]
-    g1_sig_nf_ints = [_sig_to_int(sig) for sig in g1_sig_nf]
-    g2_sig_nf_ints = [_sig_to_int(sig) for sig in g2_sig_nf]
+    g1_sig_nf_ints = [Signature.compiled_to_int(sig) for sig in g1_sig_nf]
+    g2_sig_nf_ints = [Signature.compiled_to_int(sig) for sig in g2_sig_nf]
     g1_sink_mask = (1 << g1_sinks) - 1
     g2_sink_mask = (1 << g2_sinks) - 1
     for max_size in tqdm(range(1, len(g2_sig_nf_ints) + 1),

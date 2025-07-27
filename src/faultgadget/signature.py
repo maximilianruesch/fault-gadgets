@@ -15,6 +15,8 @@
 from collections import defaultdict
 from typing import Mapping, Iterable, Tuple, NamedTuple, Dict, List
 
+from galois import GF2
+
 from pyzx import VertexType
 from .gadget import TargetType
 from .graph import GadgetGraph
@@ -28,6 +30,29 @@ class Signature(NamedTuple):
 
     def is_trivial(self) -> bool:
         return len(self.boundaries) == 0 and len(self.sinks) == 0
+
+    def compile(self, boundaries_to_idx: Mapping[int, int], sinks_to_idx: Mapping[int, int]) -> GF2:
+        num_boundaries = len(boundaries_to_idx)
+        np_sig = GF2.Zeros(num_boundaries * 2 + len(sinks_to_idx))
+        for boundary, pauli in self.boundaries.items():
+            idx = boundaries_to_idx[boundary]
+            if pauli == Pauli.Z or pauli == Pauli.Y: np_sig[idx] = 1
+            if pauli == Pauli.X or pauli == Pauli.Y: np_sig[idx + num_boundaries] = 1
+
+        for sink, active in self.sinks.items():
+            if active: np_sig[sinks_to_idx[sink] + num_boundaries * 2] = 1
+
+        return np_sig
+
+    @staticmethod
+    def compiled_to_int(compiled: GF2) -> int:
+        out = 0
+        for bit in compiled.tolist():
+            out = (out << 1) | bit
+        return out
+
+    def to_int(self, boundaries_to_idx: Mapping[int, int], sinks_to_idx: Mapping[int, int]) -> int:
+        return Signature.compiled_to_int(self.compile(boundaries_to_idx, sinks_to_idx))
 
     def to_string(self, boundaries_to_idx: Mapping[int, int], sinks_to_idx: Mapping[int, int]) -> str:
         boundaries: List[str] = ["I" for _ in boundaries_to_idx]
