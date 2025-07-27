@@ -113,4 +113,4 @@ def convert_firing_assignment_to_signature(ordering: GraphOrdering, v: List[Z2])
         if v[adj_z_boundary + len(ordering.z_boundaries)] == 1:
             boundaries[g_boundary] *= Pauli.X
 
-    return boundaries
+    return Signature(boundaries, dict())

@@ -24,7 +24,7 @@ from ...graph_helpers import add_sinks_for_all_detecting_regions
 from ...graph import GadgetGraph
 from ...web import compute_stabiliser_signatures
 from .enumeration import _smallest_size_iteration
-from ...signature import GadgetSignature
+from ...signature import Signature
 from ...pauli import Pauli
 
 ET = Tuple[int, int]
@@ -70,14 +70,14 @@ def _stabilisers(g: GraphS, boundaries_to_idx: Mapping[int, int]) -> Stabilisers
     num_boundaries = len(boundaries_to_idx)
     np_stabilisers = np.zeros((len(stabilisers), num_boundaries * 2), dtype=int)
     for i, stab in enumerate(stabilisers):
-        for boundary, pauli in stab.items():
+        for boundary, pauli in stab.boundaries.items():
             idx = boundaries_to_idx[boundary]
             if pauli == Pauli.Z or pauli == Pauli.Y: np_stabilisers[i, idx] = 1
             if pauli == Pauli.X or pauli == Pauli.Y: np_stabilisers[i, idx + num_boundaries] = 1
 
     return Stabilisers(GF2(np_stabilisers).row_reduce(eye='left'))
 
-def _calculate_signature_normal_forms(signatures: Mapping[int, GadgetSignature], stabs: AugmentedStabilisers,
+def _calculate_signature_normal_forms(signatures: Mapping[int, Signature], stabs: AugmentedStabilisers,
                                       boundaries_to_idx: Mapping[int, int], num_boundaries: int,
                                       sink_to_idx: Mapping[int, int], num_sinks: int) -> List[GF2]:
     signature_normal_forms: List[GF2] = []

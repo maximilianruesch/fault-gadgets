@@ -80,6 +80,11 @@ def compute_stabilisers(graph: GraphS) -> List[PauliWeb]:
     return webs
 
 def compute_stabiliser_signatures(graph: GraphS) -> List[Signature]:
+    """
+    Computes the signatures of all stabilisers of the given graph.
+    The returned signatures will naturally not activate any sinks.
+    """
+
     g = graph.clone()
 
     to_irreversible_red_green_form(g)

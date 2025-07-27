@@ -22,16 +22,14 @@ from .pauli import Pauli
 
 ET = Tuple[int, int]
 
-type Signature = Mapping[int, Pauli]
-
-class GadgetSignature(NamedTuple):
+class Signature(NamedTuple):
     boundaries: Mapping[int, Pauli]
     sinks: Mapping[int, bool]
 
     def is_trivial(self) -> bool:
         return len(self.boundaries) == 0 and len(self.sinks) == 0
 
-def gadgets_to_signatures(g: GadgetGraph, gadget_ids: Iterable[int]) -> Mapping[int, GadgetSignature]:
+def gadgets_to_signatures(g: GadgetGraph, gadget_ids: Iterable[int]) -> Mapping[int, Signature]:
     b_vertices = [v for v in g.vertices() if g.type(v) == VertexType.BOUNDARY]
 
     signatures = dict()
@@ -49,6 +47,6 @@ def gadgets_to_signatures(g: GadgetGraph, gadget_ids: Iterable[int]) -> Mapping[
             elif sink_id is not None:
                 sinks[sink_id] = True
 
-        signatures[gadget_id] = GadgetSignature(boundaries, sinks)
+        signatures[gadget_id] = Signature(boundaries, sinks)
 
     return signatures

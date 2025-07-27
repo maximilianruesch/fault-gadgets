@@ -21,7 +21,7 @@ from galois import GF2
 from pyzx import Mat2, VertexType
 from pyzx.graph.graph_s import GraphS
 from pyzx.linalg import Z2
-from .signature import GadgetSignature
+from .signature import Signature
 from .graph import GadgetGraph, Nodes
 from .pauli import Pauli, PauliWeb
 from .web import to_red_green_form, determine_ordering, create_firing_verification, \
@@ -164,7 +164,7 @@ def compute_webs_for_gadgets(graph: GadgetGraph, gadget_ids: Iterable[int]) -> M
 
     return webs
 
-def compute_signatures_for_gadgets(graph: GadgetGraph, gadget_ids: Optional[Iterable[int]] = None) -> Mapping[int, GadgetSignature]:
+def compute_signatures_for_gadgets(graph: GadgetGraph, gadget_ids: Optional[Iterable[int]] = None) -> Mapping[int, Signature]:
     """
     Computes a Pauli web for the given gadget in the graph context.
     A valid web for the gadget is one that features a Z-type edge between the gadgets spawn and distributor.
@@ -185,16 +185,16 @@ def compute_signatures_for_gadgets(graph: GadgetGraph, gadget_ids: Optional[Iter
 
     signatures = dict()
     for gadget_id, firing_assignment in _firing_assignments_for_gadgets(g, nodes, ordering, gadget_ids):
-        signature = convert_firing_assignment_to_signature(ordering, firing_assignment)
+        g_signature = convert_firing_assignment_to_signature(ordering, firing_assignment)
 
         boundaries: Dict[int, Pauli] = defaultdict(lambda: Pauli.I)
         sinks: Dict[int, bool] = defaultdict(lambda: False)
-        for boundary, pauli in signature.items():
+        for boundary, pauli in g_signature.boundaries.items():
             if boundary in sink_end_to_id:
                 sinks[sink_end_to_id[boundary]] = True
             elif boundary not in spawns:
                 boundaries[boundary] = pauli
 
-        signatures[gadget_id] = GadgetSignature(boundaries, sinks)
+        signatures[gadget_id] = Signature(boundaries, sinks)
 
     return signatures
