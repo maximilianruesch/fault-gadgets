@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from collections import defaultdict
-from typing import Mapping, Iterable, Tuple, NamedTuple, Dict
+from typing import Mapping, Iterable, Tuple, NamedTuple, Dict, List
 
 from pyzx import VertexType
 from .gadget import TargetType
@@ -28,6 +28,26 @@ class Signature(NamedTuple):
 
     def is_trivial(self) -> bool:
         return len(self.boundaries) == 0 and len(self.sinks) == 0
+
+    def to_string(self, boundaries_to_idx: Mapping[int, int], sinks_to_idx: Mapping[int, int]) -> str:
+        boundaries: List[str] = ["I" for _ in boundaries_to_idx]
+        sinks: List[str] = ["0" for _ in sinks_to_idx]
+
+        for b, p in self.boundaries.items():
+            boundaries[boundaries_to_idx[b]] = str(p)
+        for s, a in self.sinks.items():
+            if a: sinks[sinks_to_idx[s]] = "1"
+
+        return f"{''.join(boundaries)} | {''.join(sinks)}"
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
+    def __str__(self) -> str:
+        boundaries = { k: str(v) for k, v in self.boundaries.items() }
+        sinks = { k: str(v) for k, v in self.sinks.items() }
+
+        return f"Signature(b={boundaries}, s={sinks})"
 
 def gadgets_to_signatures(g: GadgetGraph, gadget_ids: Iterable[int]) -> Mapping[int, Signature]:
     b_vertices = [v for v in g.vertices() if g.type(v) == VertexType.BOUNDARY]
