@@ -1,1 +1,1 @@
-from .query import tanner_graph
+from .query import extended_tanner_graph, extended_tanner_graph_adv_edge_flip_noise
