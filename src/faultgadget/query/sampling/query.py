@@ -17,7 +17,7 @@ import numpy as np
 
 from pyzx import VertexType
 from pyzx.graph.graph_s import GraphS
-from ... import add_all_gadgets, GadgetGraph, add_sinks_for_all_detecting_regions, compute_signatures_for_gadgets, \
+from ... import wrap_adversarial_edge_flip_noise, add_sinks_for_all_detecting_regions, compute_signatures_for_gadgets, \
     Signature
 
 
@@ -27,9 +27,8 @@ def sample_signatures(g: GraphS, shots: int, p: float = 0.1) -> Iterator[Signatu
 
     :returns The complete list of detector IDs and the list of randomly sampled fault signatures.
     """
-    gadget_graph = GadgetGraph.from_graph(g)
+    gadget_graph, _ = wrap_adversarial_edge_flip_noise(g)
     add_sinks_for_all_detecting_regions(gadget_graph)
-    add_all_gadgets(gadget_graph)
     id_to_signature = compute_signatures_for_gadgets(gadget_graph)
 
     boundaries_to_idx = { b: i for i, b in enumerate([v for v in g.vertices() if g.type(v) == VertexType.BOUNDARY])}

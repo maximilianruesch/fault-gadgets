@@ -132,7 +132,7 @@ def _firing_assignments_for_gadgets(g: GraphS, nodes: Nodes, ordering: GraphOrde
         b = Mat2.unit_vector(len(spawns) + len(nodes.sinks) + 1, spawns.index(spawn))
         basis_sol = Mat2(spawn_restricted_basis).solve(b)
         if basis_sol is None:
-           raise AssertionError(f"No valid assignment in basis found for gadget ID {gadget_id}!")
+           raise AssertionError(f"No valid assignment in basis found for gadget ID {gadget_id}! Did you forget to add sinks?")
         firing_assignment = np.dot(np.array(sols_basis.data), np.array(basis_sol.data)) % 2
 
         yield gadget_id, firing_assignment.flatten().tolist()

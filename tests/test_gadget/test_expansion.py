@@ -1,6 +1,6 @@
 import pytest
 
-from faultgadget.graph_helpers import add_all_gadgets, add_sinks_for_all_detecting_regions
+from faultgadget import wrap_adversarial_edge_flip_noise, add_sinks_for_all_detecting_regions
 from pyzx.graph.graph_s import GraphS
 import pyzx as zx
 
@@ -30,9 +30,8 @@ def test_hbox():
 def test_zweb(qubits, depth):
     g = generate.zweb(qubits, depth)
 
-    dg = GadgetGraph.from_graph(g)
+    dg, _ = wrap_adversarial_edge_flip_noise(g)
     add_sinks_for_all_detecting_regions(dg)
-    add_all_gadgets(dg)
     expand_all_gadgets(dg)
 
     assert_gadget_graph_equality(g, dg)

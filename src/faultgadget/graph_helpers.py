@@ -12,17 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Tuple, List, Mapping
+from typing import List
 
 from .sink import SinkType
 from .web import compute_detecting_regions
 from .graph import GadgetGraph
 from .pauli import PauliWeb, Pauli
-
-ET = Tuple[int, int]
-
-def add_all_gadgets(dg: GadgetGraph) -> Mapping[ET, Tuple[int, int, int]]:
-    return { edge: dg.add_edge_flip_gadgets(edge) for edge in list(dg.edges()) }
 
 def add_sinks_for_all_detecting_regions(dg: GadgetGraph) -> int:
     return add_sinks_for_regions(dg, compute_detecting_regions(dg))
