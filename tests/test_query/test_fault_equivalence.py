@@ -223,3 +223,100 @@ def test_cnot_target_fuse_flagged():
     zx.simplify.spider_simp(g2)
 
     assert is_fault_equivalent(g1, g2, quiet=False)
+
+def test_parallel_syndrome_extraction():
+    """
+    Parallel syndrome extraction.
+    From https://arxiv.org/pdf/1804.06995, Figure II.3.C.
+    """
+    c1 = zx.Circuit(5)
+
+    c1.add_gate("InitAncilla", 5)
+    c1.add_gate("InitAncilla", 6)
+    c1.add_gate("InitAncilla", 7)
+    c1.add_gate("H", 5)
+    c1.add_gate("H", 6)
+
+    c1.add_gate("H", 0)
+    c1.add_gate("CNOT", 0, 5)
+    c1.add_gate("H", 0)
+    c1.add_gate("CNOT", 7, 5)
+    c1.add_gate("CNOT", 1, 5)
+    c1.add_gate("H", 3)
+    c1.add_gate("CNOT", 3, 5)
+    c1.add_gate("H", 3)
+    c1.add_gate("CNOT", 7, 5)
+    c1.add_gate("CNOT", 2, 5)
+
+    c1.add_gate("CNOT", 2, 6)
+    c1.add_gate("CNOT", 7, 6)
+    c1.add_gate("H", 1)
+    c1.add_gate("CNOT", 1, 6)
+    c1.add_gate("H", 1)
+    c1.add_gate("CNOT", 3, 6)
+    c1.add_gate("CNOT", 7, 6)
+    c1.add_gate("H", 4)
+    c1.add_gate("CNOT", 4, 6)
+    c1.add_gate("H", 4)
+
+    c1.add_gate("H", 5)
+    c1.add_gate("H", 6)
+    c1.add_gate("PostSelect", 5)
+    c1.add_gate("PostSelect", 6)
+    c1.add_gate("PostSelect", 7)
+
+    g1 = c1.to_graph(compress_rows=True)
+    zx.simplify.id_simp(g1)
+    zx.basicrules.color_change(g1, 12)
+    zx.basicrules.color_change(g1, 20)
+    zx.basicrules.color_change(g1, 32)
+    zx.basicrules.color_change(g1, 40)
+    zx.basicrules.color_change(g1, 5)
+    zx.basicrules.color_change(g1, 6)
+    zx.basicrules.color_change(g1, 44)
+    zx.basicrules.color_change(g1, 45)
+
+    c2 = zx.Circuit(5)
+
+    c2.add_gate("InitAncilla", 5)
+    c2.add_gate("InitAncilla", 6)
+    c2.add_gate("H", 5)
+    c2.add_gate("H", 6)
+
+    c2.add_gate("H", 0)
+    c2.add_gate("CNOT", 0, 5)
+    c2.add_gate("H", 0)
+    c2.add_gate("CNOT", 1, 5)
+    c2.add_gate("H", 3)
+    c2.add_gate("CNOT", 3, 5)
+    c2.add_gate("H", 3)
+    c2.add_gate("CNOT", 2, 5)
+
+    c2.add_gate("CNOT", 2, 6)
+    c2.add_gate("H", 1)
+    c2.add_gate("CNOT", 1, 6)
+    c2.add_gate("H", 1)
+    c2.add_gate("CNOT", 3, 6)
+    c2.add_gate("H", 4)
+    c2.add_gate("CNOT", 4, 6)
+    c2.add_gate("H", 4)
+
+    c2.add_gate("H", 5)
+    c2.add_gate("H", 6)
+    c2.add_gate("PostSelect", 5)
+    c2.add_gate("PostSelect", 6)
+
+    g2 = c2.to_graph(compress_rows=False)
+    zx.simplify.id_simp(g2)
+    zx.basicrules.color_change(g2, 11)
+    zx.basicrules.color_change(g2, 17)
+    zx.basicrules.color_change(g2, 25)
+    zx.basicrules.color_change(g2, 31)
+    zx.basicrules.color_change(g2, 5)
+    zx.basicrules.color_change(g2, 6)
+    zx.basicrules.color_change(g2, 35)
+    zx.basicrules.color_change(g2, 36)
+    zx.basicrules.fuse(g2, 13, 16)
+    zx.basicrules.fuse(g2, 24, 27)
+
+    assert is_fault_equivalent(g1, g2, quiet=False)

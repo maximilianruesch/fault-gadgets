@@ -18,7 +18,9 @@ import numpy as np
 from galois import GF2
 
 from pyzx import VertexType
+from pyzx.editor_actions import match_hadamard_edge
 from pyzx.graph.graph_s import GraphS
+from pyzx.hrules import had_edge_to_hbox
 from ...gadget_web_compute import compute_signatures_for_gadgets
 from ...graph_helpers import add_sinks_for_all_detecting_regions
 from ...graph import GadgetGraph
@@ -97,6 +99,9 @@ def _add_gadgets(dg: GadgetGraph) -> None:
 def _construct_signatures(g: GraphS, stabilisers: Stabilisers, boundaries_to_idx: Mapping[int, int])\
         -> Tuple[AugmentedStabilisers, List[GF2], int]:
     gadget_graph = GadgetGraph.from_graph(g)
+    for e in match_hadamard_edge(gadget_graph):
+        had_edge_to_hbox(gadget_graph, e)
+
     add_sinks_for_all_detecting_regions(gadget_graph)
     sink_id_to_idx, num_sinks = _index_graph_sinks(gadget_graph)
 
