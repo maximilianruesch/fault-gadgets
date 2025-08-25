@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Mapping, Tuple
+from typing import List, Mapping, Tuple, Optional
 
 import numpy as np
 from galois import GF2
@@ -137,9 +137,14 @@ def _add_boundary_signatures(sig_nf: List[GF2], boundary_signatures: GF2,  num_s
 
     return [GF2(l) for l in np.unique(augmented_sig_nf, axis=0)]
 
-def is_fault_equivalent(g1: GraphS, g2: GraphS, quiet: bool = True) -> bool:
+def is_fault_equivalent(g1: GraphS, g2: GraphS, weight_limit: Optional[int] = None, quiet: bool = True) -> bool:
     """
-    Given two diagrams g1 and g2, determine if they are fault equivalent under the edge flip noise model.
+    Given two diagrams g1 and g2, determine if they are (w-)fault equivalent under the edge flip noise model.
+
+    :param g1: the first diagram
+    :param g2: the second diagram
+    :param weight_limit: the weight up to which there must be equivalent faults, inclusive (`None` for infinity)
+    :param quiet: whether interim information should be printed
     """
     g1_boundaries_to_idx, g1_num_boundaries = _index_graph_boundaries(g1) # TODO index boundaries the same way / force the same inputs / outputs
     g2_boundaries_to_idx, g2_num_boundaries = _index_graph_boundaries(g2)
@@ -163,10 +168,10 @@ def is_fault_equivalent(g1: GraphS, g2: GraphS, quiet: bool = True) -> bool:
     if not quiet: print("Checking if g1 -> g2 is fault bounded...")
     augmented_g1_sig_nf = _add_boundary_signatures(g1_sig_nf, boundary_signatures, g1_num_sinks)
     g1_g2_weight = _smallest_size_iteration(augmented_g1_sig_nf, g2_sig_nf, g1_num_sinks, g2_num_boundaries, g2_num_sinks, quiet=quiet)
-    if g1_g2_weight is not None:
+    if (weight_limit is not None and g1_g2_weight <= weight_limit) or (weight_limit is None and g1_g2_weight is not None):
         return False
 
     if not quiet: print("Checking if g2 -> g1 is fault bounded...")
     augmented_g2_sig_nf = _add_boundary_signatures(g2_sig_nf, boundary_signatures, g2_num_sinks)
     g2_g1_weight = _smallest_size_iteration(augmented_g2_sig_nf, g1_sig_nf, g2_num_sinks, g1_num_boundaries, g1_num_sinks, quiet=quiet)
-    return g2_g1_weight is None
+    return (weight_limit is not None and g2_g1_weight > weight_limit) or (weight_limit is None and g2_g1_weight is None)
