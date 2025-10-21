@@ -60,4 +60,14 @@ in the main directory.
 If you encounter difficulties running the tests, make sure your installed packages are up to date and that you have all the packages listed in the `pyproject.toml`.
 
 ## Acknowledging the use of `faultgadgets`
-If you use this library for something cool (up to your interpretation), please acknowledge the library by including a link to this repository.
+```bibtex
+@misc{rüsch2025completenessfaultequivalenceclifford,
+    title={Completeness for Fault Equivalence of Clifford ZX Diagrams},
+    author={Maximilian Rüsch and Benjamin Rodatz and Aleks Kissinger},
+    year={2025},
+    eprint={2510.08477},
+    archivePrefix={arXiv},
+    primaryClass={quant-ph},
+    url={https://arxiv.org/abs/2510.08477},
+}
+```
